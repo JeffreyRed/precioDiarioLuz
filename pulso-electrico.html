@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pulso eléctrico · Precio de la luz por horas</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root{
+    --bg: #0F141B;
+    --panel: #171E27;
+    --panel-2: #1D2530;
+    --border: #2A3340;
+    --copper: #B8794C;
+    --copper-dim: #6B4E37;
+    --text: #E9EDF2;
+    --text-dim: #93A0B0;
+    --text-faint: #5C6673;
+    --barato: #6FCF97;
+    --barato-dim: #2C4535;
+    --medio: #E8B053;
+    --medio-dim: #4A3B21;
+    --caro: #E0684F;
+    --caro-dim: #4A2A22;
+  }
+
+  *{ box-sizing: border-box; }
+  html{ scroll-behavior: smooth; }
+
+  body{
+    margin:0;
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(184,121,76,0.10), transparent 60%),
+      radial-gradient(ellipse 700px 500px at 100% 0%, rgba(111,207,151,0.06), transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    min-height: 100vh;
+    padding: clamp(16px, 4vw, 40px);
+  }
+
+  .wrap{ max-width: 960px; margin: 0 auto; }
+
+  /* Header */
+  header{
+    display:flex; align-items:flex-start; justify-content:space-between;
+    gap: 16px; margin-bottom: 22px; flex-wrap: wrap;
+  }
+  .brand{ display:flex; align-items:center; gap: 12px; }
+  .brand-mark{
+    width: 40px; height: 40px; border-radius: 10px;
+    background: linear-gradient(160deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--border);
+    display:flex; align-items:center; justify-content:center;
+    flex: none;
+  }
+  .brand-mark svg{ width: 20px; height: 20px; }
+  h1{
+    font-family:'Space Grotesk', sans-serif;
+    font-size: clamp(20px, 3vw, 26px);
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .subtitle{
+    color: var(--text-dim); font-size: 13px; margin-top: 2px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .clock{
+    text-align:right; font-family:'JetBrains Mono', monospace;
+    color: var(--text-dim); font-size: 13px; padding-top: 6px;
+  }
+  .clock b{ color: var(--text); font-weight:600; }
+
+  /* Now card */
+  .now-card{
+    background: linear-gradient(155deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 26px clamp(18px,4vw,32px);
+    display:flex; align-items:center; justify-content: space-between;
+    gap: 20px; flex-wrap: wrap;
+    position: relative; overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .now-card::before{
+    content:''; position:absolute; inset:0; opacity:.5; pointer-events:none;
+    background: repeating-linear-gradient(90deg, rgba(184,121,76,0.05) 0 1px, transparent 1px 34px);
+  }
+  .now-left{ position:relative; z-index:1; }
+  .now-eyebrow{
+    font-family:'JetBrains Mono', monospace; font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--text-faint); margin-bottom: 6px;
+  }
+  .now-price{
+    font-family:'Space Grotesk', sans-serif; font-weight: 700;
+    font-size: clamp(40px, 8vw, 64px); line-height: 1; display:flex; align-items:baseline; gap:8px;
+  }
+  .now-price .unit{ font-size: 18px; color: var(--text-dim); font-weight:500; }
+  .now-band{
+    position:relative; z-index:1;
+    display:inline-flex; align-items:center; gap:8px;
+    padding: 10px 18px; border-radius: 999px;
+    font-family:'Space Grotesk', sans-serif; font-weight:600; font-size: 15px;
+    border: 1px solid var(--border);
+  }
+  .dot{ width:9px; height:9px; border-radius:50%; box-shadow: 0 0 0 4px currentColor22; }
+  .band-barato{ color: var(--barato); background: rgba(111,207,151,0.10); border-color: rgba(111,207,151,0.3); }
+  .band-medio{ color: var(--medio); background: rgba(232,176,83,0.10); border-color: rgba(232,176,83,0.3); }
+  .band-caro{ color: var(--caro); background: rgba(224,104,79,0.10); border-color: rgba(224,104,79,0.3); }
+
+  /* Briefing */
+  .briefing{
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--copper);
+    border-radius: 14px;
+    padding: 18px 22px;
+    margin-bottom: 16px;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+  .briefing .label{
+    font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:.1em;
+    text-transform: uppercase; color: var(--copper); display:block; margin-bottom: 8px;
+  }
+  .briefing strong{ color: var(--text); }
+  .briefing .barato-txt{ color: var(--barato); font-weight:600; }
+  .briefing .caro-txt{ color: var(--caro); font-weight:600; }
+
+  /* Chart panel */
+  .panel{
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px clamp(14px,3vw,24px) 14px;
+    margin-bottom: 16px;
+  }
+  .panel-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom: 16px; flex-wrap:wrap; gap:10px;}
+  .panel-title{ font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:16px; }
+  .tabs{ display:flex; gap:6px; background: var(--panel-2); padding:4px; border-radius:10px; border:1px solid var(--border);}
+  .tab{
+    font-family:'JetBrains Mono', monospace; font-size:12px; padding:6px 12px; border-radius:7px;
+    color: var(--text-dim); cursor:pointer; border:none; background:transparent;
+  }
+  .tab.active{ background: var(--panel); color: var(--text); }
+  .tab:disabled{ opacity:.35; cursor:not-allowed; }
+
+  .chart{
+    display:flex; align-items:flex-end; gap: 3px; height: 150px; padding-top: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .bar-col{ flex:1; display:flex; flex-direction:column; align-items:center; height:100%; justify-content:flex-end; position:relative; }
+  .bar{
+    width:100%; border-radius: 3px 3px 0 0; min-height:3px;
+    transition: transform .15s ease;
+  }
+  .bar-barato{ background: linear-gradient(180deg, #7EE0A6, var(--barato)); }
+  .bar-medio{ background: linear-gradient(180deg, #F0C170, var(--medio)); }
+  .bar-caro{ background: linear-gradient(180deg, #EB8267, var(--caro)); }
+  .bar-col.now .bar{ box-shadow: 0 0 0 2px var(--copper), 0 0 12px rgba(184,121,76,0.6); }
+  .bar-col:hover .bar{ transform: scaleY(1.03); filter:brightness(1.15); }
+  .hour-labels{
+    display:flex; gap:3px; margin-top:6px;
+  }
+  .hour-label{
+    flex:1; text-align:center; font-family:'JetBrains Mono', monospace;
+    font-size: 9px; color: var(--text-faint);
+  }
+  .bar-col .tip{
+    position:absolute; bottom: calc(100% + 6px); left:50%; transform:translateX(-50%);
+    background: #0B0F14; border:1px solid var(--border); color:var(--text);
+    padding:4px 7px; border-radius:6px; font-family:'JetBrains Mono', monospace; font-size:11px;
+    white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .1s; z-index:5;
+  }
+  .bar-col:hover .tip{ opacity:1; }
+
+  .legend{ display:flex; gap:18px; margin-top:14px; flex-wrap:wrap; }
+  .legend-item{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-dim); font-family:'JetBrains Mono', monospace;}
+  .legend-swatch{ width:10px; height:10px; border-radius:3px; }
+
+  /* Two columns */
+  .cols{ display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-bottom:16px; }
+  @media (max-width: 640px){ .cols{ grid-template-columns: 1fr; } }
+  .col-card{
+    background: var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px 20px;
+  }
+  .col-card h3{
+    font-family:'Space Grotesk', sans-serif; font-size:15px; margin:0 0 10px; display:flex; align-items:center; gap:8px;
+  }
+  .col-card.good{ border-top: 3px solid var(--barato); }
+  .col-card.bad{ border-top: 3px solid var(--caro); }
+  .col-card ul{ margin:0; padding-left:0; list-style:none; }
+  .col-card li{
+    display:flex; justify-content:space-between; gap:10px; padding:7px 0;
+    border-bottom: 1px dashed var(--border); font-size:13.5px; color: var(--text-dim);
+  }
+  .col-card li:last-child{ border-bottom:none; }
+  .col-card li b{ color: var(--text); font-weight:600; }
+  .col-card .price-tag{ font-family:'JetBrains Mono', monospace; color:var(--text); }
+
+  /* Appliance grid */
+  .appliances{ display:grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap:10px; margin-bottom: 20px; }
+  .appliance{
+    background: var(--panel); border:1px solid var(--border); border-radius: 12px;
+    padding: 14px; text-align:center; font-size: 12.5px; color: var(--text-dim);
+  }
+  .appliance .emoji{ font-size: 22px; display:block; margin-bottom:6px; }
+  .appliance .name{ color: var(--text); font-weight:600; display:block; margin-bottom:3px; font-size:13px;}
+  .appliance.ok{ border-color: rgba(111,207,151,0.35); background: rgba(111,207,151,0.06); }
+  .appliance.wait{ border-color: rgba(224,104,79,0.35); background: rgba(224,104,79,0.06); }
+
+  footer{
+    display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;
+    padding-top: 8px; margin-bottom: 20px;
+  }
+  .foot-note{ font-size: 11.5px; color: var(--text-faint); line-height:1.6; max-width: 620px; }
+  .foot-note a{ color: var(--copper); text-decoration:none; }
+  button.refresh{
+    font-family:'JetBrains Mono', monospace; font-size:12px; color: var(--text);
+    background: var(--panel-2); border:1px solid var(--border); border-radius:9px;
+    padding: 9px 14px; cursor:pointer; display:flex; align-items:center; gap:7px;
+  }
+  button.refresh:hover{ border-color: var(--copper); }
+  button.refresh svg{ width:13px; height:13px; }
+  button.refresh.spinning svg{ animation: spin 0.8s linear infinite; }
+  @keyframes spin{ to{ transform: rotate(360deg); } }
+
+  /* States */
+  .state{
+    text-align:center; padding: 60px 20px; color: var(--text-dim);
+  }
+  .state .big{ font-size: 34px; margin-bottom: 10px; }
+  .state h2{ font-family:'Space Grotesk', sans-serif; color:var(--text); font-size:18px; margin:0 0 8px;}
+  .state p{ font-size:13.5px; max-width: 420px; margin: 0 auto 16px; line-height:1.6;}
+  .state button{
+    font-family:'JetBrains Mono', monospace; background: var(--copper-dim); color:#fff; border:none;
+    padding: 10px 20px; border-radius: 9px; cursor:pointer; font-size:13px;
+  }
+  .hidden{ display:none !important; }
+
+  @media (prefers-reduced-motion: reduce){
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#B8794C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+      </div>
+      <div>
+        <h1>Pulso eléctrico</h1>
+        <div class="subtitle">Octopus Flexi · referencia horaria indexada a mercado</div>
+      </div>
+    </div>
+    <div class="clock">Hora en España<br><b id="clockNow">--:--</b></div>
+  </header>
+
+  <div id="loadingState" class="state">
+    <div class="big">⚡</div>
+    <h2>Consultando el precio de hoy…</h2>
+    <p>Estamos leyendo los datos horarios oficiales de Red Eléctrica de España.</p>
+  </div>
+
+  <div id="errorState" class="state hidden">
+    <div class="big">⚠️</div>
+    <h2>No se ha podido cargar el precio</h2>
+    <p id="errorMsg">Red Eléctrica no ha respondido. Puede ser un corte temporal de conexión con su API pública.</p>
+    <button id="retryBtn">Reintentar</button>
+  </div>
+
+  <div id="app" class="hidden">
+
+    <div class="now-card">
+      <div class="now-left">
+        <div class="now-eyebrow">Precio de esta hora</div>
+        <div class="now-price"><span id="nowPrice">--</span><span class="unit">€/kWh</span></div>
+      </div>
+      <div id="nowBand" class="now-band band-medio"><span class="dot"></span><span id="nowBandText">Cargando…</span></div>
+    </div>
+
+    <div class="briefing">
+      <span class="label">Resumen de la mañana</span>
+      <div id="briefingText">Preparando el resumen del día…</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Precio hora a hora</div>
+        <div class="tabs">
+          <button class="tab active" id="tabToday" data-day="today">Hoy</button>
+          <button class="tab" id="tabTomorrow" data-day="tomorrow" disabled>Mañana</button>
+        </div>
+      </div>
+      <div class="chart" id="chart"></div>
+      <div class="hour-labels" id="hourLabels"></div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--barato)"></span>Barato</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--medio)"></span>Medio</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--caro)"></span>Caro</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--copper); box-shadow:0 0 0 2px var(--copper)"></span>Ahora</div>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="col-card good">
+        <h3>🟢 Horas más baratas</h3>
+        <ul id="cheapList"></ul>
+      </div>
+      <div class="col-card bad">
+        <h3>🔴 Horas más caras</h3>
+        <ul id="expensiveList"></ul>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title" style="margin-bottom:14px;">Qué usar ahora mismo</div>
+      <div class="appliances" id="appliances"></div>
+    </div>
+
+    <details class="panel info-panel">
+      <summary class="panel-title" style="cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between;">
+        <span>¿De dónde salen estos datos?</span>
+        <span class="chev">▾</span>
+      </summary>
+      <div class="info-body">
+        <div class="info-block">
+          <span class="info-label">Fuente</span>
+          <p>API pública de <a href="https://www.ree.es" target="_blank" rel="noopener">Red Eléctrica de España (REE)</a>, sin clave ni registro. Se consulta el "widget" de precios de mercado horarios:</p>
+          <code>apidatos.ree.es/es/datos/mercados/precios-mercados-tiempo-real<br>?start_date=AAAA-MM-DDT00:00&amp;end_date=AAAA-MM-DDT23:59&amp;time_trunc=hour</code>
+          <p>De la respuesta se usa la serie <b>PVPC</b>: el precio regulado horario, que sigue el mismo patrón de mercado que las tarifas indexadas como Octopus Flexi.</p>
+        </div>
+        <div class="info-block">
+          <span class="info-label">Cálculos aplicados</span>
+          <ol>
+            <li><b>Unidad</b>: REE da el precio en €/MWh → se divide entre 1000 para pasarlo a €/kWh, la unidad de tu factura.</li>
+            <li><b>Bandas barato / medio / caro</b>: se ordenan las 24 horas del día de menor a mayor precio y se cortan en tercios (terciles). El tercio más barato = BARATO, el de en medio = MEDIO, el más caro = CARO. Es relativo a cada día, no un umbral fijo en €.</li>
+            <li><b>Mejor y peor franja</b>: se prueban todas las ventanas de 3 horas seguidas y se eligen la de media más baja y la de media más alta.</li>
+            <li><b>Actualización</b>: la página se refresca sola cada 10 minutos.</li>
+          </ol>
+        </div>
+        <div class="info-block">
+          <span class="info-label">Precio de mañana</span>
+          <p>REE publica los precios del día siguiente sobre las <b>20:15h</b>. Hasta esa hora la pestaña "Mañana" aparece desactivada; en cuanto la API responde con datos, se activa sola.</p>
+        </div>
+        <div class="info-block">
+          <span class="info-label">Diferencia con tu factura Octopus Flexi</span>
+          <p>El PVPC y Octopus Flexi siguen el mismo patrón horario porque ambos están indexados al mercado mayorista (OMIE). Pero Octopus añade su propio margen de gestión y las fórmulas de peajes/impuestos no son idénticas a las del PVPC, así que el céntimo exacto puede variar un poco. Para el precio exacto de tu factura, consulta la app de Octopus.</p>
+        </div>
+      </div>
+    </details>
+
+    <footer>
+      <div class="foot-note">
+        Datos horarios oficiales de <a href="https://www.ree.es" target="_blank" rel="noopener">Red Eléctrica de España</a> (PVPC), usados como referencia del patrón horario de las tarifas indexadas al mercado. Octopus Flexi sigue esta misma forma de precio, pero añade su propio margen y peajes: comprueba el céntimo exacto en la app de Octopus. <span id="lastUpdated"></span>
+      </div>
+      <button class="refresh" id="refreshBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+        Actualizar
+      </button>
+    </footer>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  const MADRID_TZ = 'Europe/Madrid';
+  let dataset = { today: null, tomorrow: null };
+  let currentTab = 'today';
+
+  const $ = (id) => document.getElementById(id);
+
+  function madridNow(){
+    return new Date(new Date().toLocaleString('en-US', { timeZone: MADRID_TZ }));
+  }
+
+  function pad(n){ return String(n).padStart(2,'0'); }
+
+  function dateStr(d){
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  }
+
+  function updateClock(){
+    const now = madridNow();
+    $('clockNow').textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  }
+  updateClock();
+  setInterval(updateClock, 30000);
+
+  async function fetchDay(offsetDays){
+    const base = madridNow();
+    base.setDate(base.getDate() + offsetDays);
+    const ds = dateStr(base);
+    const url = `https://apidatos.ree.es/es/datos/mercados/precios-mercados-tiempo-real?start_date=${ds}T00:00&end_date=${ds}T23:59&time_trunc=hour`;
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    return parseREEResponse(json);
+  }
+
+  function parseREEResponse(json){
+    const included = (json && json.included) || [];
+    if(!included.length) throw new Error('Respuesta sin datos');
+
+    // Prefer the PVPC series; fall back to the first available price series.
+    let series = included.find(it =>
+      (it.attributes && it.attributes.title && /pvpc/i.test(it.attributes.title)) ||
+      (it.type && /pvpc/i.test(it.type))
+    ) || included[0];
+
+    const values = (series.attributes && series.attributes.values) || series.values;
+    if(!values || !values.length) throw new Error('Serie sin valores');
+
+    // Detect unit: REData market prices are typically €/MWh.
+    const raw = values.map(v => Number(v.value));
+    const avg = raw.reduce((a,b)=>a+b,0) / raw.length;
+    const isMWh = avg > 5;
+
+    const hours = values.map(v => {
+      const dt = new Date(v.datetime);
+      const hourInMadrid = new Date(dt.toLocaleString('en-US', { timeZone: MADRID_TZ })).getHours();
+      const price = isMWh ? Number(v.value) / 1000 : Number(v.value);
+      return { hour: hourInMadrid, price };
+    });
+
+    hours.sort((a,b) => a.hour - b.hour);
+    return { hours, seriesTitle: (series.attributes && series.attributes.title) || 'Precio de mercado' };
+  }
+
+  function computeBands(hours){
+    const sorted = [...hours].map(h=>h.price).sort((a,b)=>a-b);
+    const n = sorted.length;
+    const p33 = sorted[Math.floor(n/3)];
+    const p66 = sorted[Math.floor(2*n/3)];
+    return hours.map(h => ({
+      ...h,
+      band: h.price <= p33 ? 'barato' : (h.price <= p66 ? 'medio' : 'caro')
+    }));
+  }
+
+  function bandLabel(band){
+    return band === 'barato' ? 'BARATO' : band === 'medio' ? 'PRECIO MEDIO' : 'CARO';
+  }
+
+  function fmtPrice(p){ return p.toFixed(3); }
+  function fmtHourRange(h){ return `${pad(h)}:00–${pad((h+1)%24)}:00`; }
+
+  function renderChart(hoursWithBands, nowHour){
+    const chart = $('chart');
+    const labels = $('hourLabels');
+    chart.innerHTML = '';
+    labels.innerHTML = '';
+    const max = Math.max(...hoursWithBands.map(h=>h.price));
+    const min = Math.min(...hoursWithBands.map(h=>h.price));
+    const range = (max - min) || 0.01;
+
+    hoursWithBands.forEach(h => {
+      const col = document.createElement('div');
+      col.className = 'bar-col' + (h.hour === nowHour ? ' now' : '');
+      const bar = document.createElement('div');
+      const heightPct = 12 + ((h.price - min) / range) * 88;
+      bar.className = 'bar bar-' + h.band;
+      bar.style.height = heightPct + '%';
+      const tip = document.createElement('div');
+      tip.className = 'tip';
+      tip.textContent = `${pad(h.hour)}:00 · ${fmtPrice(h.price)} €/kWh`;
+      col.appendChild(tip);
+      col.appendChild(bar);
+      chart.appendChild(col);
+
+      const lbl = document.createElement('div');
+      lbl.className = 'hour-label';
+      lbl.textContent = h.hour % 3 === 0 ? pad(h.hour) : '';
+      labels.appendChild(lbl);
+    });
+  }
+
+  function bestWindow(hours, size, findMin){
+    let bestIdx = 0, bestAvg = findMin ? Infinity : -Infinity;
+    for(let i=0; i <= hours.length - size; i++){
+      const slice = hours.slice(i, i+size);
+      const avg = slice.reduce((a,b)=>a+b.price,0) / size;
+      if((findMin && avg < bestAvg) || (!findMin && avg > bestAvg)){
+        bestAvg = avg; bestIdx = i;
+      }
+    }
+    return { start: hours[bestIdx].hour, end: hours[bestIdx+size-1].hour, avg: bestAvg };
+  }
+
+  function renderBriefing(hoursWithBands, nowHour, nowBand){
+    const cheap = bestWindow(hoursWithBands, 3, true);
+    const costly = bestWindow(hoursWithBands, 3, false);
+    const max = Math.max(...hoursWithBands.map(h=>h.price));
+    const min = Math.min(...hoursWithBands.map(h=>h.price));
+    const ratio = max / Math.max(min, 0.001);
+
+    const nowNote = nowBand === 'barato'
+      ? `Ahora mismo estás en un tramo <span class="barato-txt">barato</span>: buen momento para consumir.`
+      : nowBand === 'caro'
+      ? `Ahora mismo estás en un tramo <span class="caro-txt">caro</span>: mejor esperar si puedes.`
+      : `Ahora mismo el precio está en la media del día.`;
+
+    const spreadNote = ratio > 1.8
+      ? `Hoy hay bastante diferencia entre horas (hasta ${ratio.toFixed(1)}× más caro en punta que en valle), así que merece la pena mover el consumo.`
+      : `Hoy el precio está bastante plano (solo ${ratio.toFixed(1)}× de diferencia entre la hora más cara y la más barata), así que no cambia demasiado a qué hora consumas.`;
+
+    $('briefingText').innerHTML =
+      `${nowNote} La franja más <span class="barato-txt">barata</span> del día es <strong>${fmtHourRange(cheap.start)}</strong> ` +
+      `(media ${fmtPrice(cheap.avg)} €/kWh) y la más <span class="caro-txt">cara</span> es <strong>${fmtHourRange(costly.start)}</strong> ` +
+      `(media ${fmtPrice(costly.avg)} €/kWh). ${spreadNote}`;
+  }
+
+  function renderLists(hoursWithBands){
+    const cheapest = [...hoursWithBands].sort((a,b)=>a.price-b.price).slice(0,4).sort((a,b)=>a.hour-b.hour);
+    const priciest = [...hoursWithBands].sort((a,b)=>b.price-a.price).slice(0,4).sort((a,b)=>a.hour-b.hour);
+
+    $('cheapList').innerHTML = cheapest.map(h =>
+      `<li><b>${fmtHourRange(h.hour)}</b><span class="price-tag">${fmtPrice(h.price)} €/kWh</span></li>`
+    ).join('');
+    $('expensiveList').innerHTML = priciest.map(h =>
+      `<li><b>${fmtHourRange(h.hour)}</b><span class="price-tag">${fmtPrice(h.price)} €/kWh</span></li>`
+    ).join('');
+  }
+
+  function renderAppliances(nowBand){
+    const items = {
+      barato: [
+        ['🧺','Lavadora'], ['🍽️','Lavavajillas'], ['🔌','Coche eléctrico'],
+        ['♨️','Secadora'], ['🚿','Termo eléctrico'], ['🔋','Cargar dispositivos']
+      ],
+      medio: [
+        ['🍽️','Lavavajillas'], ['📱','Cargar móvil/portátil'], ['👕','Plancha rápida'],
+        ['🧹','Aspiradora'], ['💡','Uso normal de luces']
+      ],
+      caro: [
+        ['🍳','Horno'], ['🧺','Lavadora'], ['🍽️','Lavavajillas'],
+        ['♨️','Secadora'], ['🔌','Cargar el coche'], ['❄️','Aire acondicionado a tope']
+      ]
+    };
+    const good = nowBand === 'caro' ? false : true;
+    const list = items[nowBand] || items.medio;
+    $('appliances').innerHTML = list.map(([emoji,name]) =>
+      `<div class="appliance ${good ? 'ok' : 'wait'}">
+        <span class="emoji">${emoji}</span>
+        <span class="name">${name}</span>
+        ${good ? 'Adelante' : 'Mejor espera'}
+      </div>`
+    ).join('');
+  }
+
+  function renderAll(dayKey){
+    const data = dataset[dayKey];
+    if(!data) return;
+    const withBands = computeBands(data.hours);
+    const now = madridNow();
+    const nowHour = dayKey === 'today' ? now.getHours() : -1;
+    const nowEntry = withBands.find(h => h.hour === nowHour) || withBands[0];
+
+    $('nowPrice').textContent = fmtPrice(nowEntry.price);
+    $('nowBand').className = 'now-band band-' + nowEntry.band;
+    $('nowBandText').textContent = dayKey === 'today'
+      ? bandLabel(nowEntry.band)
+      : `PREVISIÓN ${pad(nowEntry.hour)}:00 · ${bandLabel(nowEntry.band)}`;
+
+    renderChart(withBands, nowHour);
+    if(dayKey === 'today'){
+      renderBriefing(withBands, nowHour, nowEntry.band);
+      renderAppliances(nowEntry.band);
+    }
+    renderLists(withBands);
+  }
+
+  async function loadAll(isRetry){
+    $('loadingState').classList.remove('hidden');
+    $('errorState').classList.add('hidden');
+    $('app').classList.add('hidden');
+
+    try{
+      dataset.today = await fetchDay(0);
+    }catch(err){
+      $('loadingState').classList.add('hidden');
+      $('errorState').classList.remove('hidden');
+      $('errorMsg').textContent = 'No se ha podido leer el precio de hoy desde Red Eléctrica de España. Comprueba tu conexión e inténtalo de nuevo.';
+      console.error(err);
+      return;
+    }
+
+    // Tomorrow's prices are usually published around 20:15; try but don't block on failure.
+    try{
+      dataset.tomorrow = await fetchDay(1);
+      $('tabTomorrow').disabled = false;
+    }catch(err){
+      dataset.tomorrow = null;
+      $('tabTomorrow').disabled = true;
+    }
+
+    $('loadingState').classList.add('hidden');
+    $('app').classList.remove('hidden');
+    $('lastUpdated').textContent = `Actualizado a las ${pad(madridNow().getHours())}:${pad(madridNow().getMinutes())}.`;
+    currentTab = 'today';
+    $('tabToday').classList.add('active');
+    $('tabTomorrow').classList.remove('active');
+    renderAll('today');
+  }
+
+  $('retryBtn').addEventListener('click', () => loadAll(true));
+
+  $('refreshBtn').addEventListener('click', (e) => {
+    e.currentTarget.classList.add('spinning');
+    loadAll(true).finally(() => e.currentTarget.classList.remove('spinning'));
+  });
+
+  $('tabToday').addEventListener('click', () => {
+    currentTab = 'today';
+    $('tabToday').classList.add('active');
+    $('tabTomorrow').classList.remove('active');
+    renderAll('today');
+  });
+  $('tabTomorrow').addEventListener('click', () => {
+    if($('tabTomorrow').disabled) return;
+    currentTab = 'tomorrow';
+    $('tabTomorrow').classList.add('active');
+    $('tabToday').classList.remove('active');
+    renderAll('tomorrow');
+  });
+
+  loadAll();
+  setInterval(() => { if(!document.hidden) loadAll(true); }, 10 * 60 * 1000);
+})();
+</script>
+</body>
+</html>
