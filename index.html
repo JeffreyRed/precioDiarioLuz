@@ -271,6 +271,11 @@
   .pr-label{ display:block; font-family:'JetBrains Mono', monospace; font-size:11px; color: var(--text-faint); margin-bottom:4px; }
   .pr-value{ display:block; font-family:'Space Grotesk', sans-serif; font-size:22px; font-weight:700; color: var(--copper); }
 
+  .legal-note{
+    font-size: 11px; line-height:1.6; color: var(--text-faint);
+    border-top: 1px solid var(--border); padding-top: 14px; margin-bottom: 4px;
+  }
+
   .state{
     text-align:center; padding: 60px 20px; color: var(--text-dim);
   }
@@ -318,6 +323,11 @@
   </div>
 
   <div id="app" class="hidden">
+
+    <div id="approxBanner" class="briefing hidden" style="border-left-color: var(--medio);">
+      <span class="label" style="color:var(--medio);">⚠ Precio aproximado</span>
+      <div>No se ha podido verificar el PVPC oficial en este momento (el servicio de REE puede estar limitando peticiones). Se está mostrando el precio de mercado mayorista, <b>sin impuestos ni peajes</b> — será más bajo que tu factura real. Prueba a actualizar en un momento.</div>
+    </div>
 
     <div class="now-card">
       <div class="now-left">
@@ -459,6 +469,10 @@
       </div>
     </details>
 
+    <div class="legal-note">
+      Los datos de precio provienen de una fuente pública oficial (REE / ESIOS) y se muestran con fines informativos. Esta página no está afiliada a Red Eléctrica de España, Octopus Energy ni Endesa. No constituye asesoramiento para la contratación de tarifas; para el precio exacto de tu contrato, consulta siempre a tu comercializadora.
+    </div>
+
     <footer>
       <div class="foot-note">
         Datos horarios oficiales PVPC de <a href="https://www.ree.es" target="_blank" rel="noopener">Red Eléctrica de España</a> (archivo público de ESIOS), el mismo precio final que publican las comercializadoras. Octopus Flexi sigue este patrón por estar indexada al mercado, aunque el céntimo exacto de tu factura puede variar un poco por el margen propio de Octopus. <span id="lastUpdated"></span>
@@ -527,11 +541,38 @@
   async function fetchDay(offsetDays){
     const p = madridParts(offsetDays);
     const ds = `${p.year}-${pad(p.month)}-${pad(p.day)}`;
-    const url = `https://api.esios.ree.es/archives/70/download_json?locale=es&date=${ds}`;
-    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-    if(!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
-    return parsePVPCResponse(json);
+
+    // Primary source: official ESIOS PVPC archive (final consumer price, taxes + tolls included).
+    try{
+      const url = `https://api.esios.ree.es/archives/70/download_json?locale=es&date=${ds}`;
+      const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      const json = await res.json();
+      const parsed = parsePVPCResponse(json);
+      if(isPlausiblePVPC(parsed.hours)) return parsed;
+      throw new Error('Datos PVPC fuera de rango plausible');
+    }catch(primaryErr){
+      console.warn('PVPC (ESIOS) no disponible, usando precio de mercado como aproximación:', primaryErr);
+    }
+
+    // Fallback: REE's wholesale/spot price widget. Clearly marked as an approximation —
+    // it does NOT include taxes or grid tolls, so it will read lower than your real bill.
+    const url2 = `https://apidatos.ree.es/es/datos/mercados/precios-mercados-tiempo-real?start_date=${ds}T00:00&end_date=${ds}T23:59&time_trunc=hour`;
+    const res2 = await fetch(url2, { headers: { 'Accept': 'application/json' } });
+    if(!res2.ok) throw new Error('HTTP ' + res2.status);
+    const json2 = await res2.json();
+    const fallback = parseSpotResponse(json2);
+    fallback.approx = true;
+    return fallback;
+  }
+
+  function isPlausiblePVPC(hours){
+    if(!hours || hours.length < 20) return false;
+    const sorted = [...hours].map(h=>h.price).sort((a,b)=>a-b);
+    const median = sorted[Math.floor(sorted.length/2)];
+    // Real PVPC always carries fixed regulated costs (peajes + cargos + impuesto),
+    // so it practically never sits below ~0.02 €/kWh even when wholesale is near zero.
+    return median >= 0.02 && median <= 0.9;
   }
 
   function parsePVPCResponse(json){
@@ -550,7 +591,28 @@
 
     if(!hours.length) throw new Error('No se pudieron leer los precios PVPC');
     hours.sort((a,b) => a.hour - b.hour);
-    return { hours, seriesTitle: 'PVPC' };
+    return { hours, seriesTitle: 'PVPC', approx: false };
+  }
+
+  function parseSpotResponse(json){
+    const included = (json && json.included) || [];
+    if(!included.length) throw new Error('Respuesta sin datos');
+    const series = included[0];
+    const values = (series.attributes && series.attributes.values) || series.values;
+    if(!values || !values.length) throw new Error('Serie sin valores');
+
+    const raw = values.map(v => Number(v.value));
+    const avg = raw.reduce((a,b)=>a+b,0) / raw.length;
+    const isMWh = avg > 5;
+
+    const hours = values.map(v => {
+      const dt = new Date(v.datetime);
+      const hourInMadrid = new Date(dt.toLocaleString('en-US', { timeZone: MADRID_TZ })).getHours();
+      const price = isMWh ? Number(v.value) / 1000 : Number(v.value);
+      return { hour: hourInMadrid, price };
+    });
+    hours.sort((a,b) => a.hour - b.hour);
+    return { hours, seriesTitle: (series.attributes && series.attributes.title) || 'Precio de mercado' };
   }
 
   function computeBands(hours){
@@ -695,6 +757,9 @@
   function renderAll(dayKey){
     const data = dataset[dayKey];
     if(!data) return;
+
+    $('approxBanner').classList.toggle('hidden', !data.approx);
+
     const withBands = computeBands(data.hours);
     const nowHour = dayKey === 'today' ? madridParts(0).hour : -1;
     const nowEntry = withBands.find(h => h.hour === nowHour) || withBands[0];
