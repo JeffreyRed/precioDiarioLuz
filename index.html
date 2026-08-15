@@ -211,6 +211,10 @@
   .appliance .name{ color: var(--text); font-weight:600; display:block; margin-bottom:3px; font-size:13px;}
   .appliance.ok{ border-color: rgba(111,207,151,0.35); background: rgba(111,207,151,0.06); }
   .appliance.wait{ border-color: rgba(224,104,79,0.35); background: rgba(224,104,79,0.06); }
+  .appliance .impact-tag{
+    display:block; font-size:10px; text-transform:uppercase; letter-spacing:.05em;
+    color: var(--text-faint); font-family:'JetBrains Mono', monospace; margin-bottom:4px;
+  }
 
   footer{
     display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;
@@ -229,6 +233,44 @@
   @keyframes spin{ to{ transform: rotate(360deg); } }
 
   /* States */
+  .info-panel summary::-webkit-details-marker{ display:none; }
+  .info-panel .chev{ color: var(--copper); font-size:14px; transition: transform .15s; }
+  .info-panel[open] .chev{ transform: rotate(180deg); }
+  .info-body{ margin-top:16px; display:flex; flex-direction:column; gap:14px; }
+  .info-block .info-label{
+    display:block; font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:.08em;
+    text-transform:uppercase; color: var(--copper); margin-bottom:6px;
+  }
+  .info-block p{ margin:0 0 6px; font-size:13.5px; line-height:1.6; color: var(--text-dim); }
+  .info-block p b{ color: var(--text); }
+  .info-block code{
+    display:block; background:#0B0F14; border:1px solid var(--border); border-radius:8px;
+    padding:10px 12px; font-family:'JetBrains Mono', monospace; font-size:11.5px; color: var(--barato);
+    margin: 8px 0; overflow-x:auto; white-space:pre;
+  }
+  .info-block ol{ margin:0; padding-left:18px; font-size:13.5px; line-height:1.7; color: var(--text-dim); }
+  .info-block ol b{ color: var(--text); }
+
+  .potencia-grid{
+    display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:16px;
+  }
+  @media (max-width: 480px){ .potencia-grid{ grid-template-columns: 1fr 1fr; } }
+  .potencia-field label{
+    display:block; font-family:'JetBrains Mono', monospace; font-size:11px; color: var(--text-faint);
+    margin-bottom:5px; text-transform:uppercase; letter-spacing:.04em;
+  }
+  .potencia-field input{
+    width:100%; background: var(--panel-2); border:1px solid var(--border); border-radius:8px;
+    color: var(--text); font-family:'JetBrains Mono', monospace; font-size:14px; padding:9px 10px;
+  }
+  .potencia-field input:focus{ outline:none; border-color: var(--copper); }
+  .potencia-result{
+    display:flex; gap:14px; flex-wrap:wrap; border-top:1px solid var(--border); padding-top:14px;
+  }
+  .potencia-result > div{ flex:1; min-width:160px; }
+  .pr-label{ display:block; font-family:'JetBrains Mono', monospace; font-size:11px; color: var(--text-faint); margin-bottom:4px; }
+  .pr-value{ display:block; font-family:'Space Grotesk', sans-serif; font-size:22px; font-weight:700; color: var(--copper); }
+
   .state{
     text-align:center; padding: 60px 20px; color: var(--text-dim);
   }
@@ -290,6 +332,11 @@
       <div id="briefingText">Preparando el resumen del día…</div>
     </div>
 
+    <div class="briefing" style="border-left-color: var(--barato);">
+      <span class="label" style="color:var(--barato);">Tu patrón de consumo</span>
+      <div>Según tu app de Octopus, entre semana consumes menos (~10-15 kWh/día) y los fines de semana subes hasta ~20 kWh/día. Eso te favorece: el sábado y domingo caen enteros en periodo <b>valle</b>, así que buena parte de ese consumo extra ya está cayendo en las horas más baratas de la semana sin que tengas que cambiar nada.</div>
+    </div>
+
     <div class="panel">
       <div class="panel-head">
         <div class="panel-title">Precio hora a hora</div>
@@ -319,10 +366,59 @@
       </div>
     </div>
 
+    <div class="panel" id="potenciaPanel">
+      <div class="panel-title" style="margin-bottom:6px;">Tu término de potencia</div>
+      <div class="foot-note" style="margin-bottom:16px;">Esto es un coste fijo diario, no cambia según la hora — por eso va aparte del precio de la energía. Ya viene rellenado con los datos de tu factura Flexi; cámbialos si te renuevan las condiciones.</div>
+      <div class="potencia-grid">
+        <div class="potencia-field">
+          <label for="p1kw">Potencia P1 (kW)</label>
+          <input type="number" id="p1kw" value="4.5" step="0.1" min="0">
+        </div>
+        <div class="potencia-field">
+          <label for="p1price">Precio P1 (€/kW·día)</label>
+          <input type="number" id="p1price" value="0.075902" step="0.000001" min="0">
+        </div>
+        <div class="potencia-field">
+          <label for="p2kw">Potencia P2 (kW)</label>
+          <input type="number" id="p2kw" value="4.5" step="0.1" min="0">
+        </div>
+        <div class="potencia-field">
+          <label for="p2price">Precio P2 (€/kW·día)</label>
+          <input type="number" id="p2price" value="0.001988" step="0.000001" min="0">
+        </div>
+      </div>
+      <div class="potencia-result">
+        <div><span class="pr-label">Hoy pagas de potencia</span><span class="pr-value" id="potenciaDay">--</span></div>
+        <div><span class="pr-label">Estimado al mes (×30)</span><span class="pr-value" id="potenciaMonth">--</span></div>
+      </div>
+    </div>
+
     <div class="panel">
       <div class="panel-title" style="margin-bottom:14px;">Qué usar ahora mismo</div>
       <div class="appliances" id="appliances"></div>
+      <div class="foot-note" style="margin-top:14px;">Impacto = cuánto pesa ese aparato en tu consumo. En los de impacto bajo, la hora casi no cambia lo que pagas; en los de impacto alto, sí merece la pena moverlos a una hora barata.</div>
     </div>
+
+    <details class="panel info-panel">
+      <summary class="panel-title" style="cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between;">
+        <span>¿Qué mueve el precio de un día a otro?</span>
+        <span class="chev">▾</span>
+      </summary>
+      <div class="info-body">
+        <div class="info-block">
+          <p><b>Demanda.</b> Entre semana y en días de mucho frío o mucho calor se consume más luz y el precio sube. Los fines de semana y festivos, con menos actividad industrial, suele bajar.</p>
+        </div>
+        <div class="info-block">
+          <p><b>Sol y viento.</b> Con mucho sol o viento, la solar y la eólica producen barato y el precio cae — a veces incluso queda en negativo a mediodía. Con cielo cubierto y sin viento, entran centrales de gas más caras y el precio sube.</p>
+        </div>
+        <div class="info-block">
+          <p><b>Precio del gas.</b> Buena parte de las centrales funcionan con gas natural, así que cuando el gas se encarece en los mercados internacionales, la electricidad también.</p>
+        </div>
+        <div class="info-block">
+          <p><b>Imprevistos.</b> Una central averiada, una ola de calor repentina o problemas en las conexiones con Francia o Portugal pueden mover el precio de golpe, para arriba o para abajo.</p>
+        </div>
+      </div>
+    </details>
 
     <details class="panel info-panel">
       <summary class="panel-title" style="cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between;">
@@ -332,9 +428,9 @@
       <div class="info-body">
         <div class="info-block">
           <span class="info-label">Fuente</span>
-          <p>API pública de <a href="https://www.ree.es" target="_blank" rel="noopener">Red Eléctrica de España (REE)</a>, sin clave ni registro. Se consulta el "widget" de precios de mercado horarios:</p>
-          <code>apidatos.ree.es/es/datos/mercados/precios-mercados-tiempo-real<br>?start_date=AAAA-MM-DDT00:00&amp;end_date=AAAA-MM-DDT23:59&amp;time_trunc=hour</code>
-          <p>De la respuesta se usa la serie <b>PVPC</b>: el precio regulado horario, que sigue el mismo patrón de mercado que las tarifas indexadas como Octopus Flexi.</p>
+          <p>API pública de <a href="https://www.ree.es" target="_blank" rel="noopener">Red Eléctrica de España (REE)</a>, sin clave ni registro — el mismo archivo oficial que usan las comercializadoras (Endesa, etc.) para publicar el precio PVPC:</p>
+          <code>api.esios.ree.es/archives/70/download_json<br>?locale=es&amp;date=AAAA-MM-DD</code>
+          <p>Ese archivo da directamente el precio <b>PVPC</b> final por hora (ya con impuestos y peajes incluidos, el mismo que verías en Endesa o en tu propia factura si tuvieras PVPC), y es el patrón horario que también sigue Octopus Flexi al estar indexada al mercado.</p>
         </div>
         <div class="info-block">
           <span class="info-label">Cálculos aplicados</span>
@@ -347,7 +443,14 @@
         </div>
         <div class="info-block">
           <span class="info-label">Precio de mañana</span>
-          <p>REE publica los precios del día siguiente sobre las <b>20:15h</b>. Hasta esa hora la pestaña "Mañana" aparece desactivada; en cuanto la API responde con datos, se activa sola.</p>
+          <p>REE publica los precios del día siguiente entre las <b>20:00 y las 21:00h</b>. Hasta entonces la pestaña "Mañana" aparece desactivada; en cuanto la API responde con datos, se activa sola.</p>
+        </div>
+        <div class="info-block">
+          <span class="info-label">Tu factura real y las 24 horas</span>
+          <p>Tu factura de Octopus Flexi no enseña las 24 horas: las agrupa en 3 bloques para que se lea fácil — <b>P1 punta</b>, <b>P2 llano</b> y <b>P3 valle</b>. Pero por debajo, Octopus te cobra hora a hora con el precio real de mercado, y luego calcula la media de cada bloque para el resumen de la factura. Por eso un P3 (valle) puede salir con una media de apenas 0,003 €/kWh: dentro de esa franja hay horas casi regaladas que tiran la media hacia abajo, mezcladas con otras algo más caras. Este gráfico de arriba es literalmente ese mismo desglose, pero sin agrupar — hora por hora en vez de en 3 bloques.</p>
+          <p>Los horarios oficiales de los periodos en la Península son: <b>Punta</b> 10-14h y 18-22h (L-V), <b>Llano</b> 8-10h, 14-18h y 22-24h (L-V), <b>Valle</b> 0-8h y todo el día en fines de semana y festivos.</p>
+        </div>
+          <p>Alrededor del 40% de tu factura son peajes y cargos regulados (mantenimiento de la red, bono social, etc.), fijados por el Gobierno y la CNMC, iguales para todos con independencia de la hora. Solo la parte de energía —la que ves en este gráfico— cambia hora a hora.</p>
         </div>
         <div class="info-block">
           <span class="info-label">Diferencia con tu factura Octopus Flexi</span>
@@ -358,7 +461,7 @@
 
     <footer>
       <div class="foot-note">
-        Datos horarios oficiales de <a href="https://www.ree.es" target="_blank" rel="noopener">Red Eléctrica de España</a> (PVPC), usados como referencia del patrón horario de las tarifas indexadas al mercado. Octopus Flexi sigue esta misma forma de precio, pero añade su propio margen y peajes: comprueba el céntimo exacto en la app de Octopus. <span id="lastUpdated"></span>
+        Datos horarios oficiales PVPC de <a href="https://www.ree.es" target="_blank" rel="noopener">Red Eléctrica de España</a> (archivo público de ESIOS), el mismo precio final que publican las comercializadoras. Octopus Flexi sigue este patrón por estar indexada al mercado, aunque el céntimo exacto de tu factura puede variar un poco por el margen propio de Octopus. <span id="lastUpdated"></span>
       </div>
       <button class="refresh" id="refreshBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
@@ -377,61 +480,77 @@
 
   const $ = (id) => document.getElementById(id);
 
-  function madridNow(){
-    return new Date(new Date().toLocaleString('en-US', { timeZone: MADRID_TZ }));
+  function computePotencia(){
+    const p1kw = parseFloat($('p1kw').value) || 0;
+    const p1price = parseFloat($('p1price').value) || 0;
+    const p2kw = parseFloat($('p2kw').value) || 0;
+    const p2price = parseFloat($('p2price').value) || 0;
+    const daily = (p1kw * p1price) + (p2kw * p2price);
+    $('potenciaDay').textContent = daily.toFixed(3) + ' €';
+    $('potenciaMonth').textContent = (daily * 30).toFixed(2) + ' €';
+  }
+  ['p1kw','p1price','p2kw','p2price'].forEach(id => {
+    $(id).addEventListener('input', computePotencia);
+  });
+  computePotencia();
+
+  function madridParts(offsetDays){
+    offsetDays = offsetDays || 0;
+    const fmt = new Intl.DateTimeFormat('en-GB', {
+      timeZone: MADRID_TZ, year:'numeric', month:'2-digit', day:'2-digit',
+      hour:'2-digit', minute:'2-digit', hour12:false
+    });
+    const parts = {};
+    fmt.formatToParts(new Date()).forEach(p => { if(p.type !== 'literal') parts[p.type] = p.value; });
+    const hour = parseInt(parts.hour, 10) % 24; // Intl can emit "24" for midnight in some engines
+    const minute = parseInt(parts.minute, 10);
+    let anchor = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), 12, 0, 0));
+    if(offsetDays){ anchor.setUTCDate(anchor.getUTCDate() + offsetDays); }
+    return {
+      year: anchor.getUTCFullYear(),
+      month: anchor.getUTCMonth() + 1,
+      day: anchor.getUTCDate(),
+      hour: offsetDays ? null : hour,
+      minute: offsetDays ? null : minute
+    };
   }
 
   function pad(n){ return String(n).padStart(2,'0'); }
 
-  function dateStr(d){
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-  }
-
   function updateClock(){
-    const now = madridNow();
-    $('clockNow').textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const p = madridParts(0);
+    $('clockNow').textContent = `${pad(p.hour)}:${pad(p.minute)}`;
   }
   updateClock();
   setInterval(updateClock, 30000);
 
   async function fetchDay(offsetDays){
-    const base = madridNow();
-    base.setDate(base.getDate() + offsetDays);
-    const ds = dateStr(base);
-    const url = `https://apidatos.ree.es/es/datos/mercados/precios-mercados-tiempo-real?start_date=${ds}T00:00&end_date=${ds}T23:59&time_trunc=hour`;
+    const p = madridParts(offsetDays);
+    const ds = `${p.year}-${pad(p.month)}-${pad(p.day)}`;
+    const url = `https://api.esios.ree.es/archives/70/download_json?locale=es&date=${ds}`;
     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
     if(!res.ok) throw new Error('HTTP ' + res.status);
     const json = await res.json();
-    return parseREEResponse(json);
+    return parsePVPCResponse(json);
   }
 
-  function parseREEResponse(json){
-    const included = (json && json.included) || [];
-    if(!included.length) throw new Error('Respuesta sin datos');
+  function parsePVPCResponse(json){
+    const rows = json && json.PVPC;
+    if(!rows || !rows.length) throw new Error('Respuesta sin datos PVPC');
 
-    // Prefer the PVPC series; fall back to the first available price series.
-    let series = included.find(it =>
-      (it.attributes && it.attributes.title && /pvpc/i.test(it.attributes.title)) ||
-      (it.type && /pvpc/i.test(it.type))
-    ) || included[0];
+    const hours = rows.map(row => {
+      const hourStr = row.Hora || row.hora || '';
+      const hour = parseInt(hourStr.split('-')[0], 10);
+      // PCB = Península/Canarias/Baleares, in €/MWh, comma as decimal separator.
+      const rawStr = (row.PCB || row.pcb || '0').toString().replace(',', '.');
+      const raw = parseFloat(rawStr);
+      const price = raw > 5 ? raw / 1000 : raw; // defensive unit check
+      return { hour, price };
+    }).filter(h => !isNaN(h.hour) && !isNaN(h.price));
 
-    const values = (series.attributes && series.attributes.values) || series.values;
-    if(!values || !values.length) throw new Error('Serie sin valores');
-
-    // Detect unit: REData market prices are typically €/MWh.
-    const raw = values.map(v => Number(v.value));
-    const avg = raw.reduce((a,b)=>a+b,0) / raw.length;
-    const isMWh = avg > 5;
-
-    const hours = values.map(v => {
-      const dt = new Date(v.datetime);
-      const hourInMadrid = new Date(dt.toLocaleString('en-US', { timeZone: MADRID_TZ })).getHours();
-      const price = isMWh ? Number(v.value) / 1000 : Number(v.value);
-      return { hour: hourInMadrid, price };
-    });
-
+    if(!hours.length) throw new Error('No se pudieron leer los precios PVPC');
     hours.sort((a,b) => a.hour - b.hour);
-    return { hours, seriesTitle: (series.attributes && series.attributes.title) || 'Precio de mercado' };
+    return { hours, seriesTitle: 'PVPC' };
   }
 
   function computeBands(hours){
@@ -529,38 +648,55 @@
     ).join('');
   }
 
+  // watts: consumo aproximado en uso. impact: bajo (<150W), medio (150-600W), alto (>600W)
+  const APPLIANCES = [
+    { emoji:'🧺', name:'Lavadora', watts:1500, impact:'alto' },
+    { emoji:'🍽️', name:'Lavavajillas', watts:1800, impact:'alto' },
+    { emoji:'♨️', name:'Secadora', watts:2500, impact:'alto' },
+    { emoji:'🍳', name:'Cocinar (vitro/horno)', watts:2000, impact:'alto' },
+    { emoji:'🔌', name:'Coche eléctrico', watts:7400, impact:'alto' },
+    { emoji:'🚿', name:'Termo eléctrico', watts:1500, impact:'alto' },
+    { emoji:'❄️', name:'Aire acondicionado', watts:1200, impact:'alto' },
+    { emoji:'👔', name:'Plancha', watts:2000, impact:'alto' },
+    { emoji:'🖥️', name:'Ordenador de sobremesa', watts:200, impact:'medio' },
+    { emoji:'📺', name:'Televisión', watts:120, impact:'bajo' },
+    { emoji:'💻', name:'Trabajo remoto (portátil + wifi)', watts:60, impact:'bajo' },
+    { emoji:'🧹', name:'Aspiradora con batería (carga)', watts:80, impact:'bajo' },
+    { emoji:'📱', name:'Cargar el móvil', watts:10, impact:'bajo' },
+  ];
+
+  function adviceFor(item, band){
+    if(item.impact === 'bajo'){
+      return { ok:true, text:'Cuando quieras' };
+    }
+    if(item.impact === 'medio'){
+      return band === 'caro'
+        ? { ok:false, text:'Mejor espera si puedes' }
+        : { ok:true, text:'Bien ahora' };
+    }
+    // impacto alto
+    if(band === 'barato') return { ok:true, text:'Adelante, es buen momento' };
+    if(band === 'medio') return { ok:true, text:'Aceptable, pero puede bajar' };
+    return { ok:false, text:'Mejor espera' };
+  }
+
   function renderAppliances(nowBand){
-    const items = {
-      barato: [
-        ['🧺','Lavadora'], ['🍽️','Lavavajillas'], ['🔌','Coche eléctrico'],
-        ['♨️','Secadora'], ['🚿','Termo eléctrico'], ['🔋','Cargar dispositivos']
-      ],
-      medio: [
-        ['🍽️','Lavavajillas'], ['📱','Cargar móvil/portátil'], ['👕','Plancha rápida'],
-        ['🧹','Aspiradora'], ['💡','Uso normal de luces']
-      ],
-      caro: [
-        ['🍳','Horno'], ['🧺','Lavadora'], ['🍽️','Lavavajillas'],
-        ['♨️','Secadora'], ['🔌','Cargar el coche'], ['❄️','Aire acondicionado a tope']
-      ]
-    };
-    const good = nowBand === 'caro' ? false : true;
-    const list = items[nowBand] || items.medio;
-    $('appliances').innerHTML = list.map(([emoji,name]) =>
-      `<div class="appliance ${good ? 'ok' : 'wait'}">
-        <span class="emoji">${emoji}</span>
-        <span class="name">${name}</span>
-        ${good ? 'Adelante' : 'Mejor espera'}
-      </div>`
-    ).join('');
+    $('appliances').innerHTML = APPLIANCES.map(item => {
+      const advice = adviceFor(item, nowBand);
+      return `<div class="appliance ${advice.ok ? 'ok' : 'wait'}">
+        <span class="emoji">${item.emoji}</span>
+        <span class="name">${item.name}</span>
+        <span class="impact-tag">Impacto ${item.impact}</span>
+        ${advice.text}
+      </div>`;
+    }).join('');
   }
 
   function renderAll(dayKey){
     const data = dataset[dayKey];
     if(!data) return;
     const withBands = computeBands(data.hours);
-    const now = madridNow();
-    const nowHour = dayKey === 'today' ? now.getHours() : -1;
+    const nowHour = dayKey === 'today' ? madridParts(0).hour : -1;
     const nowEntry = withBands.find(h => h.hour === nowHour) || withBands[0];
 
     $('nowPrice').textContent = fmtPrice(nowEntry.price);
@@ -603,7 +739,8 @@
 
     $('loadingState').classList.add('hidden');
     $('app').classList.remove('hidden');
-    $('lastUpdated').textContent = `Actualizado a las ${pad(madridNow().getHours())}:${pad(madridNow().getMinutes())}.`;
+    const nowP = madridParts(0);
+    $('lastUpdated').textContent = `Actualizado a las ${pad(nowP.hour)}:${pad(nowP.minute)}.`;
     currentTab = 'today';
     $('tabToday').classList.add('active');
     $('tabTomorrow').classList.remove('active');
