@@ -79,17 +79,22 @@
   .source-status.ok{ color: var(--barato); background: rgba(111,207,151,0.10); border-color: rgba(111,207,151,0.3); }
   .source-status.warn{ color: var(--medio); background: rgba(232,176,83,0.10); border-color: rgba(232,176,83,0.3); }
 
+  .top-grid{
+    display:grid; grid-template-columns: minmax(260px, 380px) 1fr; gap:16px; margin-bottom:16px; align-items:stretch;
+  }
+  @media (max-width: 780px){ .top-grid{ grid-template-columns: 1fr; } }
+
   /* Now card */
   .now-card{
     background: linear-gradient(155deg, var(--panel-2), var(--panel));
     border: 1px solid var(--border);
     border-radius: 18px;
     padding: 26px clamp(18px,4vw,32px);
-    display:flex; align-items:center; justify-content: space-between;
-    gap: 20px; flex-wrap: wrap;
+    display:flex; flex-direction:column; justify-content:space-between;
+    gap: 18px;
     position: relative; overflow: hidden;
-    margin-bottom: 16px;
   }
+  .chart-panel{ margin-bottom:0; }
   .now-card::before{
     content:''; position:absolute; inset:0; opacity:.5; pointer-events:none;
     background: repeating-linear-gradient(90deg, rgba(184,121,76,0.05) 0 1px, transparent 1px 34px);
@@ -343,13 +348,38 @@
       <div>No se ha podido verificar el PVPC oficial en este momento (el servicio de REE puede estar limitando peticiones). Se está mostrando el precio de mercado mayorista, <b>sin impuestos ni peajes</b> — será más bajo que tu factura real. Prueba a actualizar en un momento.</div>
     </div>
 
-    <div class="now-card">
-      <div class="now-left">
-        <div class="now-eyebrow">Precio de esta hora</div>
-        <div class="now-price"><span id="nowPrice">--</span><span class="unit">€/kWh</span><span id="approxTag" class="approx-tag hidden">aprox.</span></div>
-        <div id="solarNote" class="solar-note hidden">☀ Precio casi regalado ahora mismo — mucha producción solar y poca demanda. Es un precio oficial real, no un error.</div>
+    <div id="dataFixBanner" class="briefing hidden" style="border-left-color: var(--copper);">
+      <span class="label" style="color:var(--copper);">🛠 Dato corregido</span>
+      <div>Alguna hora del gráfico traía un valor imposible directamente de la fuente oficial (un fallo puntual de REE, no nuestro). Se ha sustituido por una estimación a partir de las horas vecinas para que el gráfico tenga sentido.</div>
+    </div>
+
+    <div class="top-grid">
+      <div class="now-card">
+        <div class="now-left">
+          <div class="now-eyebrow">Precio de esta hora</div>
+          <div class="now-price"><span id="nowPrice">--</span><span class="unit">€/kWh</span><span id="approxTag" class="approx-tag hidden">aprox.</span></div>
+          <div id="solarNote" class="solar-note hidden">☀ Precio casi regalado ahora mismo — mucha producción solar y poca demanda. Es un precio oficial real, no un error.</div>
+        </div>
+        <div id="nowBand" class="now-band band-medio"><span class="dot"></span><span id="nowBandText">Cargando…</span></div>
       </div>
-      <div id="nowBand" class="now-band band-medio"><span class="dot"></span><span id="nowBandText">Cargando…</span></div>
+
+      <div class="panel chart-panel">
+        <div class="panel-head">
+          <div class="panel-title">Precio hora a hora</div>
+          <div class="tabs">
+            <button class="tab active" id="tabToday" data-day="today">Hoy</button>
+            <button class="tab" id="tabTomorrow" data-day="tomorrow" disabled>Mañana</button>
+          </div>
+        </div>
+        <div class="chart" id="chart"></div>
+        <div class="hour-labels" id="hourLabels"></div>
+        <div class="legend">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--barato)"></span>Barato</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--medio)"></span>Medio</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--caro)"></span>Caro</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--copper); box-shadow:0 0 0 2px var(--copper)"></span>Ahora</div>
+        </div>
+      </div>
     </div>
 
     <div class="briefing">
@@ -362,24 +392,6 @@
       <div>Según tu app de Octopus, entre semana consumes menos (~10-15 kWh/día) y los fines de semana subes hasta ~20 kWh/día. Eso te favorece: el sábado y domingo caen enteros en periodo <b>valle</b>, así que buena parte de ese consumo extra ya está cayendo en las horas más baratas de la semana sin que tengas que cambiar nada.</div>
     </div>
 
-    <div class="panel">
-      <div class="panel-head">
-        <div class="panel-title">Precio hora a hora</div>
-        <div class="tabs">
-          <button class="tab active" id="tabToday" data-day="today">Hoy</button>
-          <button class="tab" id="tabTomorrow" data-day="tomorrow" disabled>Mañana</button>
-        </div>
-      </div>
-      <div class="chart" id="chart"></div>
-      <div class="hour-labels" id="hourLabels"></div>
-      <div class="legend">
-        <div class="legend-item"><span class="legend-swatch" style="background:var(--barato)"></span>Barato</div>
-        <div class="legend-item"><span class="legend-swatch" style="background:var(--medio)"></span>Medio</div>
-        <div class="legend-item"><span class="legend-swatch" style="background:var(--caro)"></span>Caro</div>
-        <div class="legend-item"><span class="legend-swatch" style="background:var(--copper); box-shadow:0 0 0 2px var(--copper)"></span>Ahora</div>
-      </div>
-    </div>
-
     <div class="cols">
       <div class="col-card good">
         <h3>🟢 Horas más baratas</h3>
@@ -389,6 +401,12 @@
         <h3>🔴 Horas más caras</h3>
         <ul id="expensiveList"></ul>
       </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title" style="margin-bottom:14px;">Qué usar ahora mismo</div>
+      <div class="appliances" id="appliances"></div>
+      <div class="foot-note" style="margin-top:14px;">Impacto = cuánto pesa ese aparato en tu consumo. En los de impacto bajo, la hora casi no cambia lo que pagas; en los de impacto alto, sí merece la pena moverlos a una hora barata.</div>
     </div>
 
     <div class="panel" id="potenciaPanel">
@@ -416,12 +434,6 @@
         <div><span class="pr-label">Hoy pagas de potencia</span><span class="pr-value" id="potenciaDay">--</span></div>
         <div><span class="pr-label">Estimado al mes (×30)</span><span class="pr-value" id="potenciaMonth">--</span></div>
       </div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-title" style="margin-bottom:14px;">Qué usar ahora mismo</div>
-      <div class="appliances" id="appliances"></div>
-      <div class="foot-note" style="margin-top:14px;">Impacto = cuánto pesa ese aparato en tu consumo. En los de impacto bajo, la hora casi no cambia lo que pagas; en los de impacto alto, sí merece la pena moverlos a una hora barata.</div>
     </div>
 
     <details class="panel info-panel">
@@ -523,6 +535,33 @@
   });
   computePotencia();
 
+  function sanitizeHours(hours){
+    const finite = hours.filter(h => Number.isFinite(h.price) && h.price >= 0);
+    if(finite.length < 3) return { hours, fixed: false };
+    const sorted = [...finite].map(h => h.price).sort((a,b) => a-b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    // Real PVPC has never come close to 1 €/kWh (its historical crisis-era peak was ~0.70 €/kWh),
+    // so anything above this — or wildly above the day's own median — is a bad data point, not a real price.
+    const ceiling = Math.max(0.9, median * 6);
+    let fixed = false;
+    const cleaned = hours.map((h, i) => {
+      if(!Number.isFinite(h.price) || h.price < 0 || h.price > ceiling){
+        fixed = true;
+        const prev = hours[i-1];
+        const next = hours[i+1];
+        const prevOk = prev && Number.isFinite(prev.price) && prev.price <= ceiling;
+        const nextOk = next && Number.isFinite(next.price) && next.price <= ceiling;
+        let repl = median;
+        if(prevOk && nextOk) repl = (prev.price + next.price) / 2;
+        else if(prevOk) repl = prev.price;
+        else if(nextOk) repl = next.price;
+        return { hour: h.hour, price: repl, suspect: true };
+      }
+      return h;
+    });
+    return { hours: cleaned, fixed };
+  }
+
   function madridParts(offsetDays){
     offsetDays = offsetDays || 0;
     const fmt = new Intl.DateTimeFormat('en-GB', {
@@ -578,6 +617,9 @@
       const url = `https://api.esios.ree.es/archives/70/download_json?locale=es&date=${ds}`;
       const json = await fetchJSON(url, 1);
       const parsed = parsePVPCResponse(json);
+      const clean = sanitizeHours(parsed.hours);
+      parsed.hours = clean.hours;
+      parsed.dataFixed = clean.fixed;
       if(isPlausiblePVPC(parsed.hours)) return parsed;
       throw new Error('Datos PVPC fuera de rango plausible');
     }catch(primaryErr){
@@ -590,6 +632,9 @@
       const url2 = `https://apidatos.ree.es/es/datos/mercados/precios-mercados-tiempo-real?start_date=${ds}T00:00&end_date=${ds}T23:59&time_trunc=hour`;
       const json2 = await fetchJSON(url2, 1);
       const fallback = parseSpotResponse(json2);
+      const clean2 = sanitizeHours(fallback.hours);
+      fallback.hours = clean2.hours;
+      fallback.dataFixed = clean2.fixed;
       fallback.approx = true;
       return fallback;
     }catch(fallbackErr){
@@ -614,10 +659,10 @@
     const hours = rows.map(row => {
       const hourStr = row.Hora || row.hora || '';
       const hour = parseInt(hourStr.split('-')[0], 10);
-      // PCB = Península/Canarias/Baleares, in €/MWh, comma as decimal separator.
+      // PCB = Península/Canarias/Baleares, always in €/MWh — always convert, never guess.
       const rawStr = (row.PCB || row.pcb || '0').toString().replace(',', '.');
       const raw = parseFloat(rawStr);
-      const price = raw > 5 ? raw / 1000 : raw; // defensive unit check
+      const price = raw / 1000;
       return { hour, price };
     }).filter(h => !isNaN(h.hour) && !isNaN(h.price));
 
@@ -664,6 +709,7 @@
 
   function fmtPrice(p){ return p.toFixed(3); }
   function fmtHourRange(h){ return `${pad(h)}:00–${pad((h+1)%24)}:00`; }
+  function fmtWindowRange(start, end){ return `${pad(start)}:00–${pad((end+1)%24)}:00`; }
 
   function renderChart(hoursWithBands, nowHour){
     const chart = $('chart');
@@ -725,8 +771,8 @@
       : `Hoy el precio está bastante plano (solo ${ratio.toFixed(1)}× de diferencia entre la hora más cara y la más barata), así que no cambia demasiado a qué hora consumas.`;
 
     $('briefingText').innerHTML =
-      `${nowNote} La franja más <span class="barato-txt">barata</span> del día es <strong>${fmtHourRange(cheap.start)}</strong> ` +
-      `(media ${fmtPrice(cheap.avg)} €/kWh) y la más <span class="caro-txt">cara</span> es <strong>${fmtHourRange(costly.start)}</strong> ` +
+      `${nowNote} La franja de 3 horas más <span class="barato-txt">barata</span> del día es <strong>${fmtWindowRange(cheap.start, cheap.end)}</strong> ` +
+      `(media ${fmtPrice(cheap.avg)} €/kWh) y la más <span class="caro-txt">cara</span> es <strong>${fmtWindowRange(costly.start, costly.end)}</strong> ` +
       `(media ${fmtPrice(costly.avg)} €/kWh). ${spreadNote}`;
   }
 
@@ -792,6 +838,7 @@
 
     $('approxBanner').classList.toggle('hidden', !data.approx);
     $('approxTag').classList.toggle('hidden', !data.approx);
+    $('dataFixBanner').classList.toggle('hidden', !data.dataFixed);
     if(dayKey === 'today'){
       const status = $('sourceStatus');
       status.classList.remove('hidden');
