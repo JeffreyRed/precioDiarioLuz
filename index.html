@@ -325,6 +325,38 @@
     color: var(--text); font-family:'JetBrains Mono', monospace; font-size:12px; padding:8px 10px;
   }
   .tab-select:focus{ outline:none; border-color: var(--copper); }
+
+  .kwh-rows{ display:flex; flex-direction:column; gap:8px; }
+  .kwh-row{ display:flex; align-items:center; gap:10px; }
+  .kwh-row label{
+    flex: 1; font-family:'JetBrains Mono', monospace; font-size:12.5px; color: var(--text-dim);
+  }
+  .kwh-row input{
+    width: 100px; background: var(--panel-2); border:1px solid var(--border); border-radius:8px;
+    color: var(--text); font-family:'JetBrains Mono', monospace; font-size:14px; padding:8px 10px; text-align:right;
+  }
+  .kwh-row input:focus{ outline:none; border-color: var(--copper); }
+  .kwh-row .kwh-unit{ font-family:'JetBrains Mono', monospace; font-size:11px; color: var(--text-faint); width:56px; flex:none; }
+
+  .usage-table-wrap{ overflow-x:auto; border:1px solid var(--border); border-radius:10px; }
+  table.usage-table{ border-collapse: collapse; width:100%; font-family:'JetBrains Mono', monospace; font-size:12px; }
+  table.usage-table th, table.usage-table td{
+    padding: 5px 4px; text-align:center; border-bottom:1px solid var(--border); white-space:nowrap;
+  }
+  table.usage-table th{
+    color: var(--text-dim); font-weight:600; font-size:10.5px; text-transform:uppercase;
+    position: sticky; top:0; background: var(--panel);
+  }
+  table.usage-table th:first-child, table.usage-table td:first-child{
+    position: sticky; left:0; background: var(--panel); color: var(--copper); font-weight:600;
+    border-right:1px solid var(--border); z-index:1;
+  }
+  table.usage-table input{
+    width: 42px; background: var(--panel-2); border:1px solid var(--border); border-radius:6px;
+    color: var(--text); font-family:'JetBrains Mono', monospace; font-size:11.5px; padding:4px 2px; text-align:center;
+  }
+  table.usage-table input:focus{ outline:none; border-color: var(--copper); }
+  table.usage-table tr:hover td{ background: rgba(184,121,76,0.05); }
   .potencia-result{
     display:flex; gap:14px; flex-wrap:wrap; border-top:1px solid var(--border); padding-top:14px;
   }
@@ -481,24 +513,26 @@
 
     <div class="panel" id="usagePanel">
       <div class="panel-title" style="margin-bottom:6px;">Tu uso de electrodomésticos hoy</div>
-      <div class="foot-note" style="margin-bottom:14px;">Un uso = un aparato encendido a una hora concreta, durante X minutos. Añade, edita o borra los que quieras — esto alimenta tanto el comparador de hoy como el mensual de abajo, así todo sale de los mismos números.</div>
+      <div class="foot-note" style="margin-bottom:14px;">Minutos de uso de cada aparato, hora por hora. Esta tabla alimenta tanto el comparador de hoy como el mensual de abajo.</div>
 
       <div class="potencia-grid" style="margin-bottom:14px;">
-        <div class="potencia-field"><label for="neveraWatts">Nevera (potencia media, todo el día)</label><input type="number" id="neveraWatts" value="50" step="5" min="0"></div>
-        <div class="potencia-field"><label for="lavadoraKwh">Lavadora (kWh/lavado, se coloca en la hora más barata)</label><input type="number" id="lavadoraKwh" value="1.5" step="0.1" min="0"></div>
+        <div class="potencia-field">
+          <label><input type="checkbox" id="lavadoraHoy"> Lavadora hoy (se coloca sola en la hora más barata)</label>
+          <input type="number" id="lavadoraMin" value="90" step="5" min="0" style="margin-top:6px;">
+        </div>
       </div>
+      <div class="foot-note" style="margin-bottom:14px;">Por defecto lavadora y horno están en 0 entre semana (lo normal es usarlos el fin de semana) — actívalos o rellena sus columnas el día que los uses.</div>
 
-      <div id="usageRows"></div>
-      <button class="refresh" id="addRowBtn" style="margin-top:10px;">+ Añadir uso</button>
+      <div class="usage-table-wrap">
+        <table class="usage-table" id="usageTable"></table>
+      </div>
+      <div class="foot-note" style="margin-top:10px;">Potencias de referencia: portátil 60W · nevera 150W (compresor) · televisor 50" 130W · estufa eléctrica 2000W · horno 2200W · aire acondicionado central 3500W · lavadora 1500W.</div>
     </div>
 
     <div class="panel" id="comparePanel">
-      <div class="panel-head" style="margin-bottom:6px;">
-        <div class="panel-title">Flexi vs. Relax, con tu uso de hoy</div>
-        <select id="compareScope" class="tab-select"></select>
-      </div>
+      <div class="panel-title" style="margin-bottom:6px;">Flexi vs. Relax, con tu uso de hoy</div>
       <div class="foot-note" style="margin-bottom:16px;">
-        Calculado con la tabla de uso de arriba y el precio real de cada hora de hoy. Elige "Todos los aparatos" para el total del día, o un aparato concreto para ver solo su coste. Aquí solo cuenta energía, no potencia ni impuestos — para eso está el comparador mensual de abajo.
+        Calculado directo de la tabla de arriba y el precio real de cada hora de hoy. Solo cuenta energía, no potencia ni impuestos — para eso está el comparador mensual de abajo.
       </div>
       <div class="potencia-grid">
         <div class="potencia-field">
@@ -515,17 +549,27 @@
 
     <div class="panel" id="monthlyPanel">
       <div class="panel-title" style="margin-bottom:6px;">Comparador mensual completo: Flexi vs Relax vs Octopus 3</div>
+
+      <div class="potencia-result" style="margin-bottom:6px;">
+        <div><span class="pr-label">Flexi / mes (aprox.)</span><span class="pr-value" id="mFlexiTotal">--</span></div>
+        <div><span class="pr-label">Relax / mes</span><span class="pr-value" id="mRelaxTotal">--</span></div>
+        <div><span class="pr-label">Octopus 3 / mes</span><span class="pr-value" id="mO3Total">--</span></div>
+      </div>
+      <div id="monthlyVerdict" class="foot-note" style="font-size:13px; color:var(--text); margin-bottom:16px;"></div>
+
       <div class="foot-note" style="margin-bottom:14px;">
-        Factura entera estimada: potencia + energía por periodo + bono social + alquiler de equipos + impuesto eléctrico (5,11%) + IVA (21%), en el mismo orden que tu factura real. El consumo (kWh y su reparto punta/llano/valle) sale de tu tabla de uso de arriba; Flexi además usa el precio real de hoy hora a hora para calcular el coste de energía de hoy y lo multiplica por los días del mes — <b>es aproximado</b>, porque el precio de Flexi cambia cada día. Cambia lo que quieras, o pulsa "Usar valores por defecto" para restaurar precios y cargos.
+        Potencia + energía por periodo + bono social + alquiler de equipos + impuesto eléctrico (5,11%) + IVA (21%), en el mismo orden que tu factura real. El consumo por periodo sale de tu tabla de uso × días (clasificado por horario oficial punta/llano/valle). Flexi usa el precio real de hoy hora a hora, extrapolado — <b>por eso es aproximado</b>, el precio de Flexi cambia cada día.
       </div>
 
-      <div class="foot-note" style="margin-bottom:6px; color:var(--text);">Consumo del mes (kWh por periodo) — auto-calculado desde tu tabla de uso × días. Puedes sobrescribirlo a mano.</div>
-      <div class="potencia-grid" style="margin-bottom:6px;">
-        <div class="potencia-field"><label for="mKwhPunta">Punta (kWh/mes)</label><input type="number" id="mKwhPunta" value="93" step="1" min="0"></div>
-        <div class="potencia-field"><label for="mKwhLlano">Llano (kWh/mes)</label><input type="number" id="mKwhLlano" value="89" step="1" min="0"></div>
-        <div class="potencia-field"><label for="mKwhValle">Valle (kWh/mes)</label><input type="number" id="mKwhValle" value="120" step="1" min="0"></div>
-        <div class="potencia-field"><label for="mDias">Días facturados</label><input type="number" id="mDias" value="30" step="1" min="1"></div>
+      <div class="foot-note" style="margin-bottom:6px; color:var(--text);">Consumo del mes (kWh por periodo) — auto-calculado desde tu tabla de uso × días facturados. Puedes escribir encima para meter tu factura real y comparar.</div>
+      <div class="kwh-rows" style="margin-bottom:10px;">
+        <div class="kwh-row"><label for="mKwhPunta">Punta</label><input type="number" id="mKwhPunta" value="93" step="0.1" min="0"><span class="kwh-unit">kWh/mes</span></div>
+        <div class="kwh-row"><label for="mKwhLlano">Llano</label><input type="number" id="mKwhLlano" value="89" step="0.1" min="0"><span class="kwh-unit">kWh/mes</span></div>
+        <div class="kwh-row"><label for="mKwhValle">Valle</label><input type="number" id="mKwhValle" value="120" step="0.1" min="0"><span class="kwh-unit">kWh/mes</span></div>
+        <div class="kwh-row"><label for="mDias">Días facturados</label><input type="number" id="mDias" value="30" step="1" min="1"><span class="kwh-unit">días</span></div>
+        <div class="kwh-row"><label for="mLavadosMes">Lavados al mes</label><input type="number" id="mLavadosMes" value="4" step="1" min="0"><span class="kwh-unit">lavados</span></div>
       </div>
+      <button class="refresh" id="mSyncBtn" style="margin-bottom:14px;">↻ Recalcular kWh desde la tabla de uso</button>
 
       <div class="foot-note" style="margin-bottom:6px; color:var(--text); font-weight:600;">Potencia contratada</div>
       <div class="potencia-grid" style="margin-bottom:6px;">
@@ -557,14 +601,7 @@
         <div class="potencia-field"><label for="mAlquiler">Alquiler equipos (€/día)</label><input type="number" id="mAlquiler" value="0.027" step="0.001" min="0"></div>
       </div>
 
-      <button class="refresh" id="mResetBtn" style="margin-bottom:16px;">Usar valores por defecto</button>
-
-      <div class="potencia-result" style="margin-bottom:6px;">
-        <div><span class="pr-label">Flexi / mes (aprox.)</span><span class="pr-value" id="mFlexiTotal">--</span></div>
-        <div><span class="pr-label">Relax / mes</span><span class="pr-value" id="mRelaxTotal">--</span></div>
-        <div><span class="pr-label">Octopus 3 / mes</span><span class="pr-value" id="mO3Total">--</span></div>
-      </div>
-      <div id="monthlyVerdict" class="foot-note" style="font-size:13px; color:var(--text);"></div>
+      <button class="refresh" id="mResetBtn">Usar valores por defecto</button>
     </div>
 
     <details class="panel info-panel">
@@ -968,146 +1005,76 @@
     }).join('');
   }
 
-  // ---- Usage table: drives both the daily and monthly Flexi comparisons ----
-  const DEFAULT_USAGE = [
-    { name: 'Aire acondicionado central', hour: 22, minutes: 15 },
-    { name: 'Aire acondicionado central', hour: 2,  minutes: 15 },
-    { name: 'Cocinar (vitro/horno)', hour: 8,  minutes: 20 },
-    { name: 'Cocinar (vitro/horno)', hour: 12, minutes: 20 },
-    { name: 'Cocinar (vitro/horno)', hour: 17, minutes: 20 },
-    { name: 'Televisión 50"', hour: 8,  minutes: 60 },
-    { name: 'Televisión 50"', hour: 12, minutes: 60 },
-    { name: 'Televisión 50"', hour: 17, minutes: 60 },
-    { name: 'Televisión 50"', hour: 20, minutes: 60 },
-    { name: 'Televisión 50"', hour: 21, minutes: 60 },
-    { name: 'Trabajo remoto (portátil + wifi)', hour: 9,  minutes: 60 },
-    { name: 'Trabajo remoto (portátil + wifi)', hour: 10, minutes: 60 },
-    { name: 'Trabajo remoto (portátil + wifi)', hour: 11, minutes: 60 },
-    { name: 'Trabajo remoto (portátil + wifi)', hour: 12, minutes: 60 },
-    { name: 'Trabajo remoto (portátil + wifi)', hour: 13, minutes: 60 },
-    { name: 'Trabajo remoto (portátil + wifi)', hour: 14, minutes: 60 },
-    { name: 'Trabajo remoto (portátil + wifi)', hour: 15, minutes: 60 },
-    { name: 'Trabajo remoto (portátil + wifi)', hour: 16, minutes: 60 },
-    { name: 'Trabajo remoto (portátil + wifi)', hour: 17, minutes: 60 },
-    { name: 'Cargar el móvil', hour: 1, minutes: 120 },
+  // ---- Usage matrix: hour × appliance, drives both the daily and monthly Flexi comparisons ----
+  const APPLIANCE_COLUMNS = [
+    { key:'portatil', label:'Portátil', watts:60 },
+    { key:'nevera',   label:'Nevera',   watts:150 },
+    { key:'tv',       label:'Televisor', watts:130 },
+    { key:'estufa',   label:'Estufa eléc.', watts:2000 },
+    { key:'horno',    label:'Horno', watts:2200 },
+    { key:'ac',       label:'Aire acond.', watts:3500 },
   ];
+  const LAVADORA_WATTS = 1500;
 
-  function ampliancesOptionsHTML(selectedName){
-    return APPLIANCES.map(a =>
-      `<option value="${a.name}" ${a.name === selectedName ? 'selected' : ''}>${a.emoji} ${a.name}</option>`
-    ).join('');
+  function defaultGridMinutes(){
+    const g = {};
+    APPLIANCE_COLUMNS.forEach(c => g[c.key] = new Array(24).fill(0));
+    for(let h = 9; h <= 17; h++) g.portatil[h] = 60;
+    for(let h = 0; h < 24; h++) g.nevera[h] = 20;
+    [8,12,17,20,21].forEach(h => g.tv[h] = 60);
+    [8,12,17].forEach(h => g.estufa[h] = 20);
+    g.ac[22] = 15; g.ac[2] = 15;
+    return g;
   }
-  function hourOptionsHTML(selectedHour){
-    let html = '';
+
+  function buildUsageTable(){
+    const wrap = $('usageTable');
+    const grid = defaultGridMinutes();
+    let thead = '<thead><tr><th>Hora</th>' + APPLIANCE_COLUMNS.map(c => `<th>${c.label}</th>`).join('') + '</tr></thead>';
+    let tbody = '<tbody>';
     for(let h = 0; h < 24; h++){
-      html += `<option value="${h}" ${h === selectedHour ? 'selected' : ''}>${pad(h)}:00</option>`;
+      tbody += `<tr><td>${pad(h)}:00</td>` + APPLIANCE_COLUMNS.map(c =>
+        `<td><input type="number" class="u-cell" data-col="${c.key}" data-hour="${h}" value="${grid[c.key][h]}" min="0" max="60" step="5"></td>`
+      ).join('') + '</tr>';
     }
-    return html;
+    tbody += '</tbody>';
+    wrap.innerHTML = thead + tbody;
+    wrap.querySelectorAll('.u-cell').forEach(el => el.addEventListener('input', onUsageChanged));
   }
 
-  function addUsageRow(preset){
-    const row = document.createElement('div');
-    row.className = 'usage-row';
-    const def = preset || { name: APPLIANCES[0].name, hour: 8, minutes: 30 };
-    row.innerHTML =
-      `<select class="u-appliance">${ampliancesOptionsHTML(def.name)}</select>` +
-      `<select class="u-hour">${hourOptionsHTML(def.hour)}</select>` +
-      `<input type="number" class="u-minutes" value="${def.minutes}" min="1" max="60" step="1">` +
-      `<button class="rm-btn" title="Eliminar">✕</button>`;
-    row.querySelectorAll('select, input').forEach(el => el.addEventListener('input', onUsageChanged));
-    row.querySelector('.rm-btn').addEventListener('click', () => { row.remove(); onUsageChanged(); });
-    $('usageRows').appendChild(row);
-  }
-
-  function buildUsageHeaderAndRows(){
-    const head = document.createElement('div');
-    head.className = 'usage-head';
-    head.innerHTML = '<span>Aparato</span><span>Hora</span><span>Minutos</span><span></span>';
-    $('usageRows').parentElement.insertBefore(head, $('usageRows'));
-    DEFAULT_USAGE.forEach(u => addUsageRow(u));
-  }
-
-  function readUsageRows(){
-    return Array.from(document.querySelectorAll('#usageRows .usage-row')).map(row => ({
-      name: row.querySelector('.u-appliance').value,
-      hour: parseInt(row.querySelector('.u-hour').value, 10),
-      minutes: parseFloat(row.querySelector('.u-minutes').value) || 0
-    }));
-  }
-
-  function wattsFor(name){
-    const a = APPLIANCES.find(x => x.name === name);
-    return a ? a.watts : 0;
-  }
-
-  // Builds { hourly: [24 kWh values], byAppliance: { name: {hourly:[24], total} } } — nevera not included per-appliance,
-  // it's added as a flat continuous line since it's not an "event".
+  // Returns { hourly: [24 kWh values] } from the matrix (nevera included, lavadora is not — it's handled separately).
   function buildUsageModel(){
-    const rows = readUsageRows();
     const hourly = new Array(24).fill(0);
-    const byAppliance = {};
-    rows.forEach(r => {
-      const kwh = (wattsFor(r.name) * r.minutes / 60) / 1000;
-      hourly[r.hour] += kwh;
-      if(!byAppliance[r.name]) byAppliance[r.name] = { hourly: new Array(24).fill(0), total: 0 };
-      byAppliance[r.name].hourly[r.hour] += kwh;
-      byAppliance[r.name].total += kwh;
+    document.querySelectorAll('#usageTable .u-cell').forEach(el => {
+      const col = APPLIANCE_COLUMNS.find(c => c.key === el.dataset.col);
+      const h = parseInt(el.dataset.hour, 10);
+      const minutes = parseFloat(el.value) || 0;
+      hourly[h] += (col.watts * minutes / 60) / 1000;
     });
-    const neveraKwhPerHour = (parseFloat($('neveraWatts').value) || 0) / 1000;
-    for(let h = 0; h < 24; h++) hourly[h] += neveraKwhPerHour;
-    return { hourly, byAppliance, neveraKwhPerHour };
+    return { hourly };
   }
 
-  function populateCompareScope(byAppliance){
-    const select = $('compareScope');
-    const current = select.value;
-    const names = Object.keys(byAppliance);
-    select.innerHTML = '<option value="__all__">Todos los aparatos</option>' +
-      '<option value="__nevera__">Nevera</option>' +
-      '<option value="__lavadora__">Lavadora</option>' +
-      names.map(n => `<option value="${n}">${n}</option>`).join('');
-    if([...select.options].some(o => o.value === current)) select.value = current;
+  function lavadoraTodayKwh(){
+    if(!$('lavadoraHoy').checked) return 0;
+    const minutes = parseFloat($('lavadoraMin').value) || 0;
+    return (LAVADORA_WATTS * minutes / 60) / 1000;
   }
 
   function renderComparison(hoursWithPrice){
     const model = buildUsageModel();
-    populateCompareScope(model.byAppliance);
     const relaxPrice = parseFloat($('relaxPrice').value) || 0;
-    const lavadoraKwh = parseFloat($('lavadoraKwh').value) || 0;
     const priceByHour = {};
     hoursWithPrice.forEach(h => { priceByHour[h.hour] = h.price; });
     const cheapestPrice = Math.min(...hoursWithPrice.map(h => h.price));
+    const lavadoraKwh = lavadoraTodayKwh();
 
-    const scope = $('compareScope').value;
-    let flexiCost = 0, totalKwh = 0, label = 'Todos los aparatos';
-
-    if(scope === '__all__'){
-      for(let h = 0; h < 24; h++){
-        flexiCost += model.hourly[h] * (priceByHour[h] || 0);
-        totalKwh += model.hourly[h];
-      }
-      flexiCost += lavadoraKwh * cheapestPrice;
-      totalKwh += lavadoraKwh;
-    }else if(scope === '__nevera__'){
-      label = 'Nevera';
-      for(let h = 0; h < 24; h++){
-        flexiCost += model.neveraKwhPerHour * (priceByHour[h] || 0);
-        totalKwh += model.neveraKwhPerHour;
-      }
-    }else if(scope === '__lavadora__'){
-      label = 'Lavadora';
-      flexiCost = lavadoraKwh * cheapestPrice;
-      totalKwh = lavadoraKwh;
-    }else{
-      label = scope;
-      const entry = model.byAppliance[scope];
-      if(entry){
-        for(let h = 0; h < 24; h++){
-          flexiCost += entry.hourly[h] * (priceByHour[h] || 0);
-        }
-        totalKwh = entry.total;
-      }
+    let flexiCost = 0, totalKwh = 0;
+    for(let h = 0; h < 24; h++){
+      flexiCost += model.hourly[h] * (priceByHour[h] || 0);
+      totalKwh += model.hourly[h];
     }
+    flexiCost += lavadoraKwh * cheapestPrice;
+    totalKwh += lavadoraKwh;
 
     const relaxCost = totalKwh * relaxPrice;
 
@@ -1117,10 +1084,10 @@
     const diff = relaxCost - flexiCost;
     const diffMonth = diff * 30;
     const verdict = diff > 0.002
-      ? `Con ${label.toLowerCase()}, <b class="barato-txt">Flexi sale más barato</b> hoy por ${diff.toFixed(3)} €/día (≈ ${diffMonth.toFixed(2)} €/mes).`
+      ? `Con tu uso de hoy, <b class="barato-txt">Flexi sale más barato</b> por ${diff.toFixed(3)} €/día (≈ ${diffMonth.toFixed(2)} €/mes si todos los días fueran iguales).`
       : diff < -0.002
-      ? `Con ${label.toLowerCase()}, <b class="caro-txt">Relax sale más barato</b> hoy por ${Math.abs(diff).toFixed(3)} €/día (≈ ${Math.abs(diffMonth).toFixed(2)} €/mes).`
-      : `Prácticamente empatados — la diferencia es de céntimos.`;
+      ? `Con tu uso de hoy, <b class="caro-txt">Relax sale más barato</b> por ${Math.abs(diff).toFixed(3)} €/día (≈ ${Math.abs(diffMonth).toFixed(2)} €/mes si todos los días fueran iguales).`
+      : `Prácticamente empatados hoy — la diferencia es de céntimos.`;
     $('compareVerdict').innerHTML = verdict;
 
     return model;
@@ -1130,32 +1097,25 @@
     if(dataset.today){
       const model = renderComparison(computeBands(dataset.today.hours));
       applyUsageToMonthly(model);
+      renderMonthly();
     }
   }
 
-  $('addRowBtn').addEventListener('click', () => { addUsageRow(); onUsageChanged(); });
-  $('neveraWatts').addEventListener('input', onUsageChanged);
-  $('lavadoraKwh').addEventListener('input', onUsageChanged);
   $('relaxPrice').addEventListener('input', onUsageChanged);
-  $('compareScope').addEventListener('change', () => {
-    if(dataset.today) renderComparison(computeBands(dataset.today.hours));
-  });
+  $('lavadoraHoy').addEventListener('input', onUsageChanged);
+  $('lavadoraMin').addEventListener('input', onUsageChanged);
 
-  buildUsageHeaderAndRows();
+  buildUsageTable();
 
   // ---- Monthly full-bill comparator ----
   const MONTHLY_DEFAULTS = {
-    mKwhPunta:'93', mKwhLlano:'89', mKwhValle:'120', mDias:'30',
+    mKwhPunta:'93', mKwhLlano:'89', mKwhValle:'120', mDias:'30', mLavadosMes:'4',
     mKwPunta:'4.5', mKwValle:'4.5',
     mFlexiGestion:'0.123', mFlexiPotP:'0.076', mFlexiPotV:'0.002',
     mRelaxEnergy:'0.124', mRelaxPot:'0.093',
     mO3Punta:'0.143', mO3Llano:'0.124', mO3Valle:'0.114', mO3Pot:'0.093',
     mBonoSocial:'0.024', mAlquiler:'0.027'
   };
-  let kwhFieldsTouched = false;
-  ['mKwhPunta','mKwhLlano','mKwhValle'].forEach(id => {
-    $(id).addEventListener('input', () => { kwhFieldsTouched = true; });
-  });
 
   function num(id){ return parseFloat($(id).value) || 0; }
 
@@ -1202,14 +1162,13 @@
     $(id).addEventListener('input', () => { if(lastNowEntry) renderTariffCompare(lastNowEntry, lastNowHour); });
   });
 
-  // Fills mKwhPunta/Llano/Valle from the usage table × days, classified by today's weekday schedule
-  // (Mon-Fri periods; weekends count fully as valle). Skipped if the user has edited those fields by hand.
+  // Fills mKwhPunta/Llano/Valle from the usage matrix × days, classified by today's weekday schedule
+  // (Mon-Fri periods; weekends count fully as valle), plus the monthly washing-machine assumption.
   function applyUsageToMonthly(model){
-    if(kwhFieldsTouched || !model) return;
+    if(!model) return;
     const p = madridParts(0);
     const weekend = new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay() % 6 === 0;
     const dias = num('mDias');
-    const lavadoraKwh = parseFloat($('lavadoraKwh').value) || 0;
     let punta = 0, llano = 0, valle = 0;
     for(let h = 0; h < 24; h++){
       const period = periodForHour(h, weekend);
@@ -1218,11 +1177,17 @@
       else if(period === 'llano') llano += kwhDay;
       else valle += kwhDay;
     }
-    valle += lavadoraKwh; // washing machine always placed in the cheapest slot, which is valle
+    const lavadoraKwhPerWash = (LAVADORA_WATTS * num('lavadoraMin') / 60) / 1000;
+    valle += (lavadoraKwhPerWash * num('mLavadosMes')) / dias; // spread monthly washes back into a daily-equivalent, then ×dias below
     $('mKwhPunta').value = (punta * dias).toFixed(1);
     $('mKwhLlano').value = (llano * dias).toFixed(1);
     $('mKwhValle').value = (valle * dias).toFixed(1);
   }
+
+  $('mSyncBtn').addEventListener('click', () => {
+    if(dataset.today) applyUsageToMonthly(buildUsageModel());
+    renderMonthly();
+  });
 
   function billTotal(potencia, energia, bonoSocialTotal, alquilerTotal){
     const subtotal = potencia + energia;
@@ -1239,17 +1204,19 @@
     const bonoSocialTotal = num('mBonoSocial') * dias;
     const alquilerTotal = num('mAlquiler') * dias;
 
-    // Flexi: today's real hourly prices × today's usage table = today's energy cost, extrapolated ×days (approx).
+    // Flexi: today's real hourly prices × today's usage matrix (appliances happen more in cheap hours,
+    // not spread flat across the day) = today's energy cost, extrapolated ×days. This is why it's an
+    // approximation and not an exact bill — Flexi's price itself changes from one day to the next.
     let flexiEnergiaDia = 0;
     if(dataset.today){
       const withBands = computeBands(dataset.today.hours);
       const priceByHour = {};
       withBands.forEach(h => { priceByHour[h.hour] = h.price; });
       const model = buildUsageModel();
-      const lavadoraKwh = parseFloat($('lavadoraKwh').value) || 0;
       const cheapestPrice = Math.min(...withBands.map(h => h.price));
       for(let h = 0; h < 24; h++) flexiEnergiaDia += model.hourly[h] * (priceByHour[h] || 0);
-      flexiEnergiaDia += lavadoraKwh * cheapestPrice;
+      const lavadoraKwhPerWash = (LAVADORA_WATTS * num('lavadoraMin') / 60) / 1000;
+      flexiEnergiaDia += (lavadoraKwhPerWash * num('mLavadosMes') * cheapestPrice) / dias;
     }
     const flexiPotencia = (kwP * num('mFlexiPotP') + kwV * num('mFlexiPotV')) * dias;
     const flexiEnergia = flexiEnergiaDia * dias + num('mFlexiGestion') * dias;
@@ -1285,7 +1252,6 @@
 
   $('mResetBtn').addEventListener('click', () => {
     Object.keys(MONTHLY_DEFAULTS).forEach(id => { $(id).value = MONTHLY_DEFAULTS[id]; });
-    kwhFieldsTouched = false;
     if(dataset.today) applyUsageToMonthly(buildUsageModel());
     renderMonthly();
   });
