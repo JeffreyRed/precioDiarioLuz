@@ -357,6 +357,26 @@
   }
   table.usage-table input:focus{ outline:none; border-color: var(--copper); }
   table.usage-table tr:hover td{ background: rgba(184,121,76,0.05); }
+
+  .history-nav{
+    display:flex; align-items:center; justify-content:center; gap:16px; margin-bottom:16px;
+  }
+  .history-nav-btn{
+    width:36px; height:36px; flex:none; font-size:16px; border-radius:8px;
+  }
+  .history-nav-btn:disabled{ opacity:.3; cursor:not-allowed; }
+  .history-cursor-label{
+    font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:16px; min-width:160px; text-align:center;
+  }
+
+  .history-cta{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    text-decoration:none; cursor:pointer; transition: border-color .15s;
+  }
+  .history-cta:hover{ border-color: var(--copper); }
+  .history-cta-arrow{
+    font-size: 22px; color: var(--copper); flex:none;
+  }
   .potencia-result{
     display:flex; gap:14px; flex-wrap:wrap; border-top:1px solid var(--border); padding-top:14px;
   }
@@ -604,22 +624,13 @@
       <button class="refresh" id="mResetBtn">Usar valores por defecto</button>
     </div>
 
-    <div class="panel" id="historyPanel">
-      <div class="panel-head" style="margin-bottom:6px;">
-        <div class="panel-title">Historial de precios</div>
-        <div class="tabs" id="historyTabs">
-          <button class="tab active" data-view="byHour">Por hora del día</button>
-          <button class="tab" data-view="byWeekday">Por día de la semana</button>
-          <button class="tab" data-view="byMonth">Por mes</button>
-          <button class="tab" data-view="evolution">Evolución diaria</button>
-        </div>
+    <a href="historico.html" target="_blank" rel="noopener" class="panel history-cta">
+      <div class="history-cta-text">
+        <div class="panel-title" style="margin-bottom:4px;">📊 Histórico completo</div>
+        <div class="foot-note">Navega día a día, mes a mes, año a año, y mira mapas de calor, distribución de precios y tendencias — con todo lo guardado por el robot de GitHub Actions.</div>
       </div>
-      <div class="foot-note" style="margin-bottom:14px;">Datos guardados automáticamente cada día por el robot de GitHub Actions, desde <code>data/pvpc-history.csv</code>. Con pocos días acumulados los patrones aún no dicen mucho — esto mejora con el tiempo.</div>
-      <div id="historyStatus" class="foot-note" style="margin-bottom:10px;"></div>
-      <div class="chart" id="historyChart"></div>
-      <div class="hour-labels" id="historyLabels"></div>
-      <div id="historySummary" class="foot-note" style="margin-top:10px;"></div>
-    </div>
+      <div class="history-cta-arrow">↗</div>
+    </a>
 
     <details class="panel info-panel">
       <summary class="panel-title" style="cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between;">
@@ -1374,150 +1385,6 @@
 
   loadAll();
   setInterval(() => { if(!document.hidden) loadAll(true); }, 10 * 60 * 1000);
-
-  // ---- History: reads data/pvpc-history.csv (written daily by the GitHub Action) ----
-  const WEEKDAY_LABELS = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-  let historyRows = null;
-  let historyView = 'byHour';
-
-  function parseCSV(text){
-    const lines = text.trim().split('\n');
-    lines.shift(); // header
-    return lines.filter(Boolean).map(line => {
-      const [date, weekday, hour, priceMwh, priceKwh] = line.split(',');
-      return {
-        date,
-        weekday: parseInt(weekday, 10),
-        hour: parseInt(hour, 10),
-        priceKwh: parseFloat(priceKwh)
-      };
-    }).filter(r => Number.isFinite(r.hour) && Number.isFinite(r.priceKwh));
-  }
-
-  function renderGenericChart(labels, values, opts){
-    opts = opts || {};
-    const chart = $('historyChart');
-    const labelsEl = $('historyLabels');
-    chart.innerHTML = '';
-    labelsEl.innerHTML = '';
-    if(!values.length){
-      chart.innerHTML = '<div class="foot-note" style="padding:20px 0;">Sin datos suficientes todavía.</div>';
-      return;
-    }
-    const max = Math.max(...values);
-    const min = Math.min(...values);
-    const range = (max - min) || 0.01;
-    values.forEach((v, i) => {
-      const col = document.createElement('div');
-      col.className = 'bar-col';
-      const bar = document.createElement('div');
-      const heightPct = 12 + ((v - min) / range) * 88;
-      bar.className = 'bar bar-medio';
-      bar.style.height = heightPct + '%';
-      bar.style.background = 'linear-gradient(180deg, #D9A56B, var(--copper))';
-      const tip = document.createElement('div');
-      tip.className = 'tip';
-      tip.textContent = `${labels[i]} · ${v.toFixed(3)} €/kWh`;
-      col.appendChild(tip);
-      col.appendChild(bar);
-      chart.appendChild(col);
-
-      const lbl = document.createElement('div');
-      lbl.className = 'hour-label';
-      lbl.textContent = opts.everyLabel ? (i % opts.everyLabel === 0 ? labels[i] : '') : labels[i];
-      labelsEl.appendChild(lbl);
-    });
-  }
-
-  function computeByHour(rows){
-    const sums = new Array(24).fill(0), counts = new Array(24).fill(0);
-    rows.forEach(r => { sums[r.hour] += r.priceKwh; counts[r.hour]++; });
-    const labels = [], values = [];
-    for(let h = 0; h < 24; h++){
-      if(counts[h] > 0){ labels.push(pad(h)); values.push(sums[h] / counts[h]); }
-    }
-    return { labels, values, everyLabel: 3 };
-  }
-
-  function computeByWeekday(rows){
-    const sums = new Array(7).fill(0), counts = new Array(7).fill(0);
-    rows.forEach(r => { if(r.weekday >= 0 && r.weekday <= 6){ sums[r.weekday] += r.priceKwh; counts[r.weekday]++; } });
-    const labels = [], values = [];
-    for(let d = 0; d < 7; d++){
-      if(counts[d] > 0){ labels.push(WEEKDAY_LABELS[d]); values.push(sums[d] / counts[d]); }
-    }
-    return { labels, values };
-  }
-
-  function computeByMonth(rows){
-    const map = {};
-    rows.forEach(r => {
-      const ym = (r.date || '').slice(0, 7);
-      if(!ym) return;
-      if(!map[ym]) map[ym] = { sum: 0, count: 0 };
-      map[ym].sum += r.priceKwh; map[ym].count++;
-    });
-    const keys = Object.keys(map).sort();
-    return { labels: keys, values: keys.map(k => map[k].sum / map[k].count) };
-  }
-
-  function computeEvolution(rows){
-    const map = {};
-    rows.forEach(r => {
-      if(!map[r.date]) map[r.date] = { sum: 0, count: 0 };
-      map[r.date].sum += r.priceKwh; map[r.date].count++;
-    });
-    const keys = Object.keys(map).sort();
-    const labels = keys.map(k => k.slice(5)); // MM-DD
-    return { labels, values: keys.map(k => map[k].sum / map[k].count), everyLabel: Math.max(1, Math.ceil(keys.length / 10)) };
-  }
-
-  function renderHistory(){
-    if(!historyRows) return;
-    const days = new Set(historyRows.map(r => r.date)).size;
-    $('historyStatus').textContent = `${days} día${days === 1 ? '' : 's'} guardado${days === 1 ? '' : 's'} · ${historyRows.length} registros.`;
-
-    let data, summaryText;
-    if(historyView === 'byHour'){
-      data = computeByHour(historyRows);
-      const cheapest = data.labels[data.values.indexOf(Math.min(...data.values))];
-      const priciest = data.labels[data.values.indexOf(Math.max(...data.values))];
-      summaryText = `Media de cada hora del día, con todo el histórico. Hasta ahora, la ${cheapest}:00 suele ser la más barata y la ${priciest}:00 la más cara.`;
-    }else if(historyView === 'byWeekday'){
-      data = computeByWeekday(historyRows);
-      summaryText = `Precio medio por día de la semana (Lun-Dom).`;
-    }else if(historyView === 'byMonth'){
-      data = computeByMonth(historyRows);
-      summaryText = `Precio medio por mes.`;
-    }else{
-      data = computeEvolution(historyRows);
-      summaryText = `Precio medio de cada día guardado, en orden.`;
-    }
-
-    if(days < 7){
-      summaryText += ' Con menos de una semana de datos esto todavía es más ruido que patrón — vuelve más adelante.';
-    }
-
-    renderGenericChart(data.labels, data.values, { everyLabel: data.everyLabel });
-    $('historySummary').textContent = summaryText;
-  }
-
-  document.querySelectorAll('#historyTabs .tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('#historyTabs .tab').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      historyView = btn.dataset.view;
-      renderHistory();
-    });
-  });
-
-  fetch('data/pvpc-history.csv')
-    .then(res => { if(!res.ok) throw new Error('HTTP ' + res.status); return res.text(); })
-    .then(text => { historyRows = parseCSV(text); renderHistory(); })
-    .catch(err => {
-      console.warn('No se pudo cargar el historial:', err);
-      $('historyStatus').textContent = 'Todavía no se pudo leer data/pvpc-history.csv (puede que aún no exista o que la Action no haya corrido).';
-    });
 })();
 </script>
 </body>
