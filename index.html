@@ -377,6 +377,12 @@
   .history-cta-arrow{
     font-size: 22px; color: var(--copper); flex:none;
   }
+  .top-history-link{
+    font-family:'JetBrains Mono', monospace; font-size:12.5px; color: var(--text);
+    background: var(--panel-2); border:1px solid var(--border); border-radius:9px;
+    padding: 8px 14px; text-decoration:none; white-space:nowrap;
+  }
+  .top-history-link:hover{ border-color: var(--copper); }
   .potencia-result{
     display:flex; gap:14px; flex-wrap:wrap; border-top:1px solid var(--border); padding-top:14px;
   }
@@ -419,7 +425,10 @@
         <div class="subtitle">Octopus Flexi · referencia horaria indexada a mercado</div>
       </div>
     </div>
-    <div class="clock">Hora en España<br><b id="clockNow">--:--</b><br><span id="sourceStatus" class="source-status"></span></div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <a href="historico.html" target="_blank" rel="noopener" class="top-history-link">📊 Histórico</a>
+      <div class="clock">Hora en España<br><b id="clockNow">--:--</b><br><span id="sourceStatus" class="source-status"></span></div>
+    </div>
   </header>
 
   <div id="loadingState" class="state">
@@ -624,13 +633,14 @@
       <button class="refresh" id="mResetBtn">Usar valores por defecto</button>
     </div>
 
-    <a href="historico.html" target="_blank" rel="noopener" class="panel history-cta">
-      <div class="history-cta-text">
-        <div class="panel-title" style="margin-bottom:4px;">📊 Histórico completo</div>
-        <div class="foot-note">Navega día a día, mes a mes, año a año, y mira mapas de calor, distribución de precios y tendencias — con todo lo guardado por el robot de GitHub Actions.</div>
-      </div>
-      <div class="history-cta-arrow">↗</div>
-    </a>
+    <div class="panel" id="historySummaryPanel">
+      <div class="panel-title" style="margin-bottom:4px;">📊 Resumen del histórico</div>
+      <div class="foot-note" style="margin-bottom:14px;">Media de cada hora del día, con todo lo guardado hasta ahora por el robot de GitHub Actions.</div>
+      <div id="summaryStatus" class="foot-note" style="margin-bottom:10px;"></div>
+      <div class="chart" id="summaryChart"></div>
+      <div class="hour-labels" id="summaryLabels"></div>
+      <a href="historico.html" target="_blank" rel="noopener" class="refresh" style="display:inline-block; text-decoration:none; margin-top:16px;">Ver histórico completo →</a>
+    </div>
 
     <details class="panel info-panel">
       <summary class="panel-title" style="cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between;">
@@ -1385,6 +1395,51 @@
 
   loadAll();
   setInterval(() => { if(!document.hidden) loadAll(true); }, 10 * 60 * 1000);
+
+  // ---- Compact history summary widget: average price by hour, from data/pvpc-history.csv ----
+  fetch('data/pvpc-history.csv')
+    .then(res => { if(!res.ok) throw new Error('HTTP ' + res.status); return res.text(); })
+    .then(text => {
+      const lines = text.trim().split('\n');
+      lines.shift();
+      const rows = lines.filter(Boolean).map(line => {
+        const [date, weekday, hour, priceMwh, priceKwh] = line.split(',');
+        return { date, hour: parseInt(hour, 10), priceKwh: parseFloat(priceKwh) };
+      }).filter(r => Number.isFinite(r.hour) && Number.isFinite(r.priceKwh));
+
+      if(!rows.length) throw new Error('CSV vacío');
+
+      const sums = new Array(24).fill(0), counts = new Array(24).fill(0);
+      rows.forEach(r => { sums[r.hour] += r.priceKwh; counts[r.hour]++; });
+      const labels = [], values = [];
+      for(let h = 0; h < 24; h++){
+        if(counts[h] > 0){ labels.push(pad(h)); values.push(sums[h] / counts[h]); }
+      }
+
+      const days = new Set(rows.map(r => r.date)).size;
+      $('summaryStatus').textContent = `${days} día${days === 1 ? '' : 's'} guardado${days === 1 ? '' : 's'} · ${rows.length} registros.`;
+
+      const chart = $('summaryChart'), labelsEl = $('summaryLabels');
+      chart.innerHTML = ''; labelsEl.innerHTML = '';
+      const max = Math.max(...values), min = Math.min(...values);
+      const range = (max - min) || 0.01;
+      values.forEach((v, i) => {
+        const col = document.createElement('div'); col.className = 'bar-col';
+        const bar = document.createElement('div'); bar.className = 'bar';
+        bar.style.height = (12 + ((v - min) / range) * 88) + '%';
+        bar.style.background = 'linear-gradient(180deg, #D9A56B, var(--copper))';
+        const tip = document.createElement('div'); tip.className = 'tip';
+        tip.textContent = `${labels[i]}:00 · ${v.toFixed(3)} €/kWh`;
+        col.appendChild(tip); col.appendChild(bar); chart.appendChild(col);
+        const lbl = document.createElement('div'); lbl.className = 'hour-label';
+        lbl.textContent = i % 3 === 0 ? labels[i] : '';
+        labelsEl.appendChild(lbl);
+      });
+    })
+    .catch(err => {
+      console.warn('No se pudo cargar el resumen del histórico:', err);
+      $('summaryStatus').textContent = 'Todavía no hay datos guardados (el robot de GitHub Actions aún no ha corrido, o acabas de desplegar la página).';
+    });
 })();
 </script>
 </body>
