@@ -383,6 +383,11 @@
     padding: 8px 14px; text-decoration:none; white-space:nowrap;
   }
   .top-history-link:hover{ border-color: var(--copper); }
+
+  table.real-monthly-table{ width:100%; border-collapse:collapse; font-family:'JetBrains Mono', monospace; font-size:12.5px; }
+  table.real-monthly-table th, table.real-monthly-table td{ padding:7px 6px; text-align:right; border-bottom:1px solid var(--border); }
+  table.real-monthly-table th:first-child, table.real-monthly-table td:first-child{ text-align:left; color:var(--copper); }
+  table.real-monthly-table th{ color:var(--text-faint); font-weight:600; font-size:10.5px; text-transform:uppercase; }
   .potencia-result{
     display:flex; gap:14px; flex-wrap:wrap; border-top:1px solid var(--border); padding-top:14px;
   }
@@ -426,7 +431,7 @@
       </div>
     </div>
     <div style="display:flex; align-items:center; gap:12px;">
-      <a href="historico.html" target="_blank" rel="noopener" class="top-history-link">📊 Histórico</a>
+      <a href="historico.html" target="_blank" rel="noopener" class="top-history-link">Histórico</a>
       <div class="clock">Hora en España<br><b id="clockNow">--:--</b><br><span id="sourceStatus" class="source-status"></span></div>
     </div>
   </header>
@@ -542,15 +547,7 @@
 
     <div class="panel" id="usagePanel">
       <div class="panel-title" style="margin-bottom:6px;">Tu uso de electrodomésticos hoy</div>
-      <div class="foot-note" style="margin-bottom:14px;">Minutos de uso de cada aparato, hora por hora. Esta tabla alimenta tanto el comparador de hoy como el mensual de abajo.</div>
-
-      <div class="potencia-grid" style="margin-bottom:14px;">
-        <div class="potencia-field">
-          <label><input type="checkbox" id="lavadoraHoy"> Lavadora hoy (se coloca sola en la hora más barata)</label>
-          <input type="number" id="lavadoraMin" value="90" step="5" min="0" style="margin-top:6px;">
-        </div>
-      </div>
-      <div class="foot-note" style="margin-bottom:14px;">Por defecto lavadora y horno están en 0 entre semana (lo normal es usarlos el fin de semana) — actívalos o rellena sus columnas el día que los uses.</div>
+      <div class="foot-note" style="margin-bottom:14px;">Minutos de uso de cada aparato, hora por hora. Esta tabla alimenta tanto el comparador de hoy como el mensual de abajo. Por defecto, lavadora y horno están en 0 (se usan sobre todo el fin de semana) — rellena su columna en la hora que los uses.</div>
 
       <div class="usage-table-wrap">
         <table class="usage-table" id="usageTable"></table>
@@ -596,7 +593,6 @@
         <div class="kwh-row"><label for="mKwhLlano">Llano</label><input type="number" id="mKwhLlano" value="89" step="0.1" min="0"><span class="kwh-unit">kWh/mes</span></div>
         <div class="kwh-row"><label for="mKwhValle">Valle</label><input type="number" id="mKwhValle" value="120" step="0.1" min="0"><span class="kwh-unit">kWh/mes</span></div>
         <div class="kwh-row"><label for="mDias">Días facturados</label><input type="number" id="mDias" value="30" step="1" min="1"><span class="kwh-unit">días</span></div>
-        <div class="kwh-row"><label for="mLavadosMes">Lavados al mes</label><input type="number" id="mLavadosMes" value="4" step="1" min="0"><span class="kwh-unit">lavados</span></div>
       </div>
       <button class="refresh" id="mSyncBtn" style="margin-bottom:14px;">↻ Recalcular kWh desde la tabla de uso</button>
 
@@ -634,12 +630,21 @@
     </div>
 
     <div class="panel" id="historySummaryPanel">
-      <div class="panel-title" style="margin-bottom:4px;">📊 Resumen del histórico</div>
+      <div class="panel-title" style="margin-bottom:4px;">Resumen del histórico</div>
       <div class="foot-note" style="margin-bottom:14px;">Media de cada hora del día, con todo lo guardado hasta ahora por el robot de GitHub Actions.</div>
       <div id="summaryStatus" class="foot-note" style="margin-bottom:10px;"></div>
       <div class="chart" id="summaryChart"></div>
       <div class="hour-labels" id="summaryLabels"></div>
-      <a href="historico.html" target="_blank" rel="noopener" class="refresh" style="display:inline-block; text-decoration:none; margin-top:16px;">Ver histórico completo →</a>
+      <a href="historico.html" target="_blank" rel="noopener" class="refresh" style="display:inline-block; text-decoration:none; margin-top:16px;">Ver histórico completo</a>
+    </div>
+
+    <div class="panel" id="realMonthlyPanel">
+      <div class="panel-title" style="margin-bottom:4px;">Coste mensual real con tu rutina</div>
+      <div class="foot-note" style="margin-bottom:14px;">Coge la tabla de uso de arriba (tal y como está ahora mismo) y la aplica contra el precio PVPC <b>real</b> de cada día guardado en el histórico — no una aproximación, el precio que de verdad hubo ese día. Así ves lo que te habría costado cada mes si hubieras seguido esta rutina siempre.</div>
+      <div id="realMonthlyStatus" class="foot-note" style="margin-bottom:10px;"></div>
+      <div class="chart" id="realMonthlyChart"></div>
+      <div class="hour-labels" id="realMonthlyLabels"></div>
+      <div id="realMonthlyTable" style="margin-top:14px;"></div>
     </div>
 
     <details class="panel info-panel">
@@ -1051,8 +1056,8 @@
     { key:'estufa',   label:'Estufa eléc.', watts:2000 },
     { key:'horno',    label:'Horno', watts:2200 },
     { key:'ac',       label:'Aire acond.', watts:3500 },
+    { key:'lavadora', label:'Lavadora', watts:1500 },
   ];
-  const LAVADORA_WATTS = 1500;
 
   function defaultGridMinutes(){
     const g = {};
@@ -1062,6 +1067,7 @@
     [8,12,17,20,21].forEach(h => g.tv[h] = 60);
     [8,12,17].forEach(h => g.estufa[h] = 20);
     g.ac[22] = 15; g.ac[2] = 15;
+    // horno y lavadora quedan en 0 por defecto — se usan sobre todo el fin de semana
     return g;
   }
 
@@ -1080,7 +1086,7 @@
     wrap.querySelectorAll('.u-cell').forEach(el => el.addEventListener('input', onUsageChanged));
   }
 
-  // Returns { hourly: [24 kWh values] } from the matrix (nevera included, lavadora is not — it's handled separately).
+  // Returns { hourly: [24 kWh values] } from the matrix — every appliance, including lavadora, is a normal column now.
   function buildUsageModel(){
     const hourly = new Array(24).fill(0);
     document.querySelectorAll('#usageTable .u-cell').forEach(el => {
@@ -1092,27 +1098,17 @@
     return { hourly };
   }
 
-  function lavadoraTodayKwh(){
-    if(!$('lavadoraHoy').checked) return 0;
-    const minutes = parseFloat($('lavadoraMin').value) || 0;
-    return (LAVADORA_WATTS * minutes / 60) / 1000;
-  }
-
   function renderComparison(hoursWithPrice){
     const model = buildUsageModel();
     const relaxPrice = parseFloat($('relaxPrice').value) || 0;
     const priceByHour = {};
     hoursWithPrice.forEach(h => { priceByHour[h.hour] = h.price; });
-    const cheapestPrice = Math.min(...hoursWithPrice.map(h => h.price));
-    const lavadoraKwh = lavadoraTodayKwh();
 
     let flexiCost = 0, totalKwh = 0;
     for(let h = 0; h < 24; h++){
       flexiCost += model.hourly[h] * (priceByHour[h] || 0);
       totalKwh += model.hourly[h];
     }
-    flexiCost += lavadoraKwh * cheapestPrice;
-    totalKwh += lavadoraKwh;
 
     const relaxCost = totalKwh * relaxPrice;
 
@@ -1140,14 +1136,12 @@
   }
 
   $('relaxPrice').addEventListener('input', onUsageChanged);
-  $('lavadoraHoy').addEventListener('input', onUsageChanged);
-  $('lavadoraMin').addEventListener('input', onUsageChanged);
 
   buildUsageTable();
 
   // ---- Monthly full-bill comparator ----
   const MONTHLY_DEFAULTS = {
-    mKwhPunta:'93', mKwhLlano:'89', mKwhValle:'120', mDias:'30', mLavadosMes:'4',
+    mKwhPunta:'93', mKwhLlano:'89', mKwhValle:'120', mDias:'30',
     mKwPunta:'4.5', mKwValle:'4.5',
     mFlexiGestion:'0.123', mFlexiPotP:'0.076', mFlexiPotV:'0.002',
     mRelaxEnergy:'0.124', mRelaxPot:'0.093',
@@ -1201,7 +1195,7 @@
   });
 
   // Fills mKwhPunta/Llano/Valle from the usage matrix × days, classified by today's weekday schedule
-  // (Mon-Fri periods; weekends count fully as valle), plus the monthly washing-machine assumption.
+  // (Mon-Fri periods; weekends count fully as valle).
   function applyUsageToMonthly(model){
     if(!model) return;
     const p = madridParts(0);
@@ -1215,8 +1209,6 @@
       else if(period === 'llano') llano += kwhDay;
       else valle += kwhDay;
     }
-    const lavadoraKwhPerWash = (LAVADORA_WATTS * num('lavadoraMin') / 60) / 1000;
-    valle += (lavadoraKwhPerWash * num('mLavadosMes')) / dias; // spread monthly washes back into a daily-equivalent, then ×dias below
     $('mKwhPunta').value = (punta * dias).toFixed(1);
     $('mKwhLlano').value = (llano * dias).toFixed(1);
     $('mKwhValle').value = (valle * dias).toFixed(1);
@@ -1251,10 +1243,7 @@
       const priceByHour = {};
       withBands.forEach(h => { priceByHour[h.hour] = h.price; });
       const model = buildUsageModel();
-      const cheapestPrice = Math.min(...withBands.map(h => h.price));
       for(let h = 0; h < 24; h++) flexiEnergiaDia += model.hourly[h] * (priceByHour[h] || 0);
-      const lavadoraKwhPerWash = (LAVADORA_WATTS * num('lavadoraMin') / 60) / 1000;
-      flexiEnergiaDia += (lavadoraKwhPerWash * num('mLavadosMes') * cheapestPrice) / dias;
     }
     const flexiPotencia = (kwP * num('mFlexiPotP') + kwV * num('mFlexiPotV')) * dias;
     const flexiEnergia = flexiEnergiaDia * dias + num('mFlexiGestion') * dias;
@@ -1435,11 +1424,77 @@
         lbl.textContent = i % 3 === 0 ? labels[i] : '';
         labelsEl.appendChild(lbl);
       });
+
+      renderRealMonthlyCost(rows);
     })
     .catch(err => {
       console.warn('No se pudo cargar el resumen del histórico:', err);
       $('summaryStatus').textContent = 'Todavía no hay datos guardados (el robot de GitHub Actions aún no ha corrido, o acabas de desplegar la página).';
+      $('realMonthlyStatus').textContent = 'Sin histórico disponible todavía.';
     });
+
+  // ---- Real monthly cost: today's usage matrix × the real recorded price of each historic day ----
+  function renderRealMonthlyCost(rows){
+    const model = buildUsageModel();
+    const pricesByDate = {};
+    rows.forEach(r => {
+      if(!pricesByDate[r.date]) pricesByDate[r.date] = {};
+      pricesByDate[r.date][r.hour] = r.priceKwh;
+    });
+
+    const monthTotals = {}; // 'YYYY-MM' -> { sum, days }
+    Object.keys(pricesByDate).forEach(date => {
+      const hoursForDate = pricesByDate[date];
+      let dayCost = 0;
+      for(let h = 0; h < 24; h++){
+        dayCost += model.hourly[h] * (hoursForDate[h] != null ? hoursForDate[h] : 0);
+      }
+      const ym = date.slice(0, 7);
+      if(!monthTotals[ym]) monthTotals[ym] = { sum: 0, days: 0 };
+      monthTotals[ym].sum += dayCost;
+      monthTotals[ym].days += 1;
+    });
+
+    const months = Object.keys(monthTotals).sort();
+    if(!months.length){
+      $('realMonthlyStatus').textContent = 'Sin días guardados todavía.';
+      return;
+    }
+
+    $('realMonthlyStatus').textContent = `Calculado sobre ${months.length} mes${months.length === 1 ? '' : 'es'} con datos reales.`;
+
+    const labels = months;
+    const values = months.map(m => monthTotals[m].sum);
+    const chart = $('realMonthlyChart'), labelsEl = $('realMonthlyLabels');
+    chart.innerHTML = ''; labelsEl.innerHTML = '';
+    const max = Math.max(...values), min = Math.min(...values);
+    const range = (max - min) || 0.01;
+    values.forEach((v, i) => {
+      const col = document.createElement('div'); col.className = 'bar-col';
+      const bar = document.createElement('div'); bar.className = 'bar';
+      bar.style.height = (12 + ((v - min) / range) * 88) + '%';
+      bar.style.background = 'linear-gradient(180deg, #7EE0A6, var(--barato))';
+      const tip = document.createElement('div'); tip.className = 'tip';
+      tip.textContent = `${labels[i]} · ${v.toFixed(2)} €`;
+      col.appendChild(tip); col.appendChild(bar); chart.appendChild(col);
+      const lbl = document.createElement('div'); lbl.className = 'hour-label';
+      lbl.textContent = labels[i];
+      labelsEl.appendChild(lbl);
+    });
+
+    const rowsHtml = months.map(m => {
+      const t = monthTotals[m];
+      const avgPerDay = t.sum / t.days;
+      const avgFullMonth = avgPerDay * 30;
+      return `<tr><td>${m}</td><td>${t.days}</td><td>${t.sum.toFixed(2)} €</td><td>${avgPerDay.toFixed(3)} €</td><td>${avgFullMonth.toFixed(2)} €</td></tr>`;
+    }).join('');
+
+    $('realMonthlyTable').innerHTML = `
+      <table class="real-monthly-table">
+        <thead><tr><th>Mes</th><th>Días guardados</th><th>Coste real acumulado</th><th>Media/día</th><th>Proyección ×30 días</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>`;
+  }
 })();
 </script>
 </body>
