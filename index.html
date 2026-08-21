@@ -547,6 +547,16 @@
       <div class="foot-note" style="margin-top:14px;">Impacto = cuánto pesa ese aparato en tu consumo. En los de impacto bajo, la hora casi no cambia lo que pagas; en los de impacto alto, sí merece la pena moverlos a una hora barata.</div>
     </div>
 
+    <div class="panel" id="realMonthlyPanel">
+      <div class="panel-title" style="margin-bottom:4px;">Coste mensual real con tu rutina</div>
+      <div class="foot-note" style="margin-bottom:6px;">Coge la tabla de uso de <b>"Tu uso de electrodomésticos hoy"</b> (todo lo explicado más abajo en esta página) tal y como está ahora mismo, y la aplica contra el precio PVPC <b>real</b> de cada día guardado en el histórico — no una aproximación, el precio que de verdad hubo ese día. Así ves lo que te habría costado cada mes si hubieras seguido esta rutina siempre.</div>
+      <div class="foot-note" style="margin-bottom:14px; color:var(--medio);">⚠ Esa tabla no se actualiza sola día a día — es una foto fija de tu rutina tal y como la dejaste. Si cambias el consumo real (más o menos aire acondicionado, otro aparato, etc.), este cálculo puede variar respecto a lo que de verdad gastaste.</div>
+      <div id="realMonthlyStatus" class="foot-note" style="margin-bottom:10px;"></div>
+      <div class="chart" id="realMonthlyChart"></div>
+      <div class="hour-labels" id="realMonthlyLabels"></div>
+      <div id="realMonthlyTable" style="margin-top:14px;"></div>
+    </div>
+
     <div class="panel" id="potenciaPanel">
       <div class="panel-title" style="margin-bottom:6px;">Tu término de potencia</div>
       <div class="foot-note" style="margin-bottom:16px;">Esto es un coste fijo diario, no cambia según la hora — por eso va aparte del precio de la energía. Ya viene rellenado con los datos de tu factura Flexi; cámbialos si te renuevan las condiciones.</div>
@@ -665,15 +675,6 @@
       <div class="chart" id="summaryChart"></div>
       <div class="hour-labels" id="summaryLabels"></div>
       <a href="historico.html" target="_blank" rel="noopener" class="refresh" style="display:inline-block; text-decoration:none; margin-top:16px;">Ver histórico completo</a>
-    </div>
-
-    <div class="panel" id="realMonthlyPanel">
-      <div class="panel-title" style="margin-bottom:4px;">Coste mensual real con tu rutina</div>
-      <div class="foot-note" style="margin-bottom:14px;">Coge la tabla de uso de arriba (tal y como está ahora mismo) y la aplica contra el precio PVPC <b>real</b> de cada día guardado en el histórico — no una aproximación, el precio que de verdad hubo ese día. Así ves lo que te habría costado cada mes si hubieras seguido esta rutina siempre.</div>
-      <div id="realMonthlyStatus" class="foot-note" style="margin-bottom:10px;"></div>
-      <div class="chart" id="realMonthlyChart"></div>
-      <div class="hour-labels" id="realMonthlyLabels"></div>
-      <div id="realMonthlyTable" style="margin-top:14px;"></div>
     </div>
 
     <details class="panel info-panel">
