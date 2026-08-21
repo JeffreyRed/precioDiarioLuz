@@ -117,6 +117,25 @@
   .solar-note{
     margin-top: 8px; font-size: 12.5px; color: var(--barato); max-width: 340px; line-height: 1.5;
   }
+
+  .weather-card{
+    background: linear-gradient(155deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--border); border-radius: 18px;
+    padding: 22px clamp(18px,4vw,28px);
+    display:flex; gap:24px; align-items:center; flex-wrap:wrap;
+    margin-bottom: 16px;
+  }
+  .weather-left{ flex:none; min-width:150px; }
+  .weather-icon{ font-size: 34px; line-height:1; margin: 6px 0 4px; }
+  .weather-big{ font-family:'Space Grotesk', sans-serif; font-weight:700; font-size: 34px; line-height:1; display:flex; align-items:baseline; gap:5px; }
+  .weather-big .unit{ font-size: 13px; color: var(--text-dim); font-weight:500; }
+  .weather-sublabel{ font-family:'JetBrains Mono', monospace; font-size:11px; color: var(--text-faint); margin-top:6px; }
+  .weather-right{
+    flex:1; min-width:220px; font-size:13.5px; color: var(--text-dim); line-height:1.7;
+    border-left: 1px solid var(--border); padding-left:20px;
+  }
+  @media (max-width:560px){ .weather-right{ border-left:none; padding-left:0; border-top:1px solid var(--border); padding-top:14px; } }
+  .weather-right b{ color: var(--text); }
   .tariff-compare{ margin-top: 14px; display:flex; flex-direction:column; gap:6px; }
   .tariff-row{
     display:flex; align-items:center; gap:8px; font-family:'JetBrains Mono', monospace; font-size:12.5px;
@@ -489,6 +508,16 @@
           <div class="legend-item"><span class="legend-swatch" style="background:var(--copper); box-shadow:0 0 0 2px var(--copper)"></span>Ahora</div>
         </div>
       </div>
+    </div>
+
+    <div class="weather-card" id="weatherNote">
+      <div class="weather-left">
+        <div class="now-eyebrow">Clima ahora</div>
+        <div class="weather-icon" id="weatherIcon">☁️</div>
+        <div class="weather-big"><span id="weatherPct">--</span><span class="unit">% nubes</span></div>
+        <div class="weather-sublabel">Media 3 regiones</div>
+      </div>
+      <div class="weather-right" id="weatherText">Consultando el tiempo…</div>
     </div>
 
     <div class="briefing">
@@ -1380,6 +1409,48 @@
     $('tabTomorrow').classList.add('active');
     $('tabToday').classList.remove('active');
     renderAll('tomorrow');
+  });
+
+  // ---- Weather widget: 3-region cloud cover, as a rough (imperfect) national signal ----
+  // Spain's PVPC price follows NATIONAL solar/wind output, concentrated mostly in the south
+  // and centre — sampling 3 spread-out regions is a better proxy than one city alone, though
+  // still not the same as actual national solar generation data.
+  const WEATHER_REGIONS = [
+    { key:'bcn', label:'Barcelona', lat:41.3874, lon:2.1686 },
+    { key:'mad', label:'Madrid (centro)', lat:40.4168, lon:-3.7038 },
+    { key:'sev', label:'Sevilla (sur)', lat:37.3891, lon:-5.9845 },
+  ];
+
+  Promise.all(WEATHER_REGIONS.map(r =>
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${r.lat}&longitude=${r.lon}&current=cloud_cover,temperature_2m&timezone=Europe%2FMadrid&forecast_days=1`)
+      .then(res => { if(!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+      .then(json => ({ label: r.label, cloud: json.current && json.current.cloud_cover, temp: json.current && json.current.temperature_2m }))
+      .catch(() => ({ label: r.label, cloud: null, temp: null }))
+  )).then(results => {
+    const valid = results.filter(r => r.cloud != null);
+    if(!valid.length) throw new Error('Sin datos de nubosidad en ninguna región');
+
+    const avgCloud = valid.reduce((s,r) => s + r.cloud, 0) / valid.length;
+    let level, note;
+    if(avgCloud < 25){ level = 'despejado'; note = 'con poco nublado en general, es razonable esperar que la solar rinda bien y las horas de mediodía salgan baratas.'; }
+    else if(avgCloud < 65){ level = 'parcialmente nublado'; note = 'con nubosidad media, la solar puede rendir algo menos de lo habitual a mediodía.'; }
+    else { level = 'nublado'; note = 'con mucha nubosidad en varias zonas, es esperable que la solar rinda poco y el precio de mediodía no baje tanto como en un día despejado.'; }
+
+    const icon = avgCloud < 25 ? '☀️' : avgCloud < 65 ? '⛅' : '☁️';
+    $('weatherIcon').textContent = icon;
+    $('weatherPct').textContent = avgCloud.toFixed(0);
+
+    const perRegionLines = results.map(r =>
+      `<div>${r.label}: <b>${r.cloud != null ? r.cloud + '% nubes' : 's/d'}</b>${r.temp != null ? ', ' + r.temp.toFixed(0) + '°C' : ''}</div>`
+    ).join('');
+
+    $('weatherText').innerHTML =
+      `<div style="margin-bottom:8px;">Cielo ${level} en conjunto. ${note.charAt(0).toUpperCase() + note.slice(1)}</div>` +
+      perRegionLines +
+      `<div style="margin-top:8px; color:var(--text-faint); font-size:12px;">En invierno, con menos horas de sol en general en toda España, es razonable esperar que Flexi tenga menos horas regaladas de mediodía que en verano.</div>`;
+  }).catch(err => {
+    console.warn('No se pudo cargar el clima:', err);
+    $('weatherText').textContent = 'No se ha podido consultar el tiempo ahora mismo.';
   });
 
   loadAll();

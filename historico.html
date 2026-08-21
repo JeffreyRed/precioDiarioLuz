@@ -97,6 +97,21 @@
   .state{ text-align:center; padding:50px 20px; color: var(--text-dim); }
   .hidden{ display:none !important; }
 
+  .region-block{ margin-bottom:22px; }
+  .region-block:last-child{ margin-bottom:0; }
+  .region-title{ font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:14px; margin-bottom:8px; color: var(--text); }
+  .region-chart{ display:flex; align-items:flex-end; gap:6px; height:90px; }
+  .region-bar-col{ flex:1; display:flex; flex-direction:column; align-items:center; height:100%; justify-content:flex-end; position:relative; }
+  .region-bar{ width:100%; border-radius:3px 3px 0 0; min-height:2px; background: linear-gradient(180deg, #EB8267, var(--caro)); }
+  .region-bar-col .tip{
+    position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%);
+    background:#0B0F14; border:1px solid var(--border); color:var(--text); padding:4px 7px; border-radius:6px;
+    font-family:'JetBrains Mono', monospace; font-size:11px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .1s; z-index:5;
+  }
+  .region-bar-col:hover .tip{ opacity:1; }
+  .region-labels{ display:flex; gap:6px; margin-top:6px; }
+  .region-label{ flex:1; text-align:center; font-family:'JetBrains Mono', monospace; font-size:10px; color: var(--text-faint); }
+
   @media (prefers-reduced-motion: reduce){ * { transition:none !important; } }
 </style>
 </head>
@@ -166,6 +181,13 @@
       <div class="hour-labels" id="trendLabels"></div>
     </div>
 
+    <div class="panel">
+      <div class="panel-title" style="margin-bottom:4px;">Clima y correlación con el precio</div>
+      <div class="panel-desc">Precio medio agrupado por nivel de nubosidad, para cada región. Si las barras suben de izquierda a derecha, más nubes coincide con más precio — justo lo que cabría esperar si menos sol reduce la generación solar. Solo cuenta con datos desde que el robot empezó a guardar clima (columnas más recientes del CSV).</div>
+      <div id="weatherCorrStatus" class="foot-note" style="margin-bottom:14px;"></div>
+      <div id="weatherCorrCharts"></div>
+    </div>
+
   </div>
 </div>
 
@@ -185,9 +207,15 @@
     const lines = text.trim().split('\n');
     lines.shift();
     return lines.filter(Boolean).map(line => {
-      const [date, weekday, hour, priceMwh, priceKwh] = line.split(',');
+      const cols = line.split(',');
+      const [date, weekday, hour, priceMwh, priceKwh, cloudBcn, tempBcn, cloudMad, tempMad, cloudSev, tempSev] = cols;
       const [y,m,d] = date.split('-').map(Number);
-      return { date, y, m, d, weekday: parseInt(weekday,10), hour: parseInt(hour,10), priceKwh: parseFloat(priceKwh) };
+      return {
+        date, y, m, d, weekday: parseInt(weekday,10), hour: parseInt(hour,10), priceKwh: parseFloat(priceKwh),
+        cloudBcn: cloudBcn !== '' && cloudBcn != null ? parseFloat(cloudBcn) : null,
+        cloudMad: cloudMad !== '' && cloudMad != null ? parseFloat(cloudMad) : null,
+        cloudSev: cloudSev !== '' && cloudSev != null ? parseFloat(cloudSev) : null,
+      };
     }).filter(r => Number.isFinite(r.hour) && Number.isFinite(r.priceKwh) && r.date);
   }
 
@@ -368,6 +396,76 @@
     });
   }
 
+  // ---- Weather correlation: average price grouped by cloud-cover bucket, per region ----
+  const WEATHER_REGIONS = [
+    { key:'cloudBcn', label:'Barcelona' },
+    { key:'cloudMad', label:'Madrid (centro)' },
+    { key:'cloudSev', label:'Sevilla (sur)' },
+  ];
+  const CLOUD_BUCKETS = [
+    { label:'0-20%', min:0, max:20 },
+    { label:'20-40%', min:20, max:40 },
+    { label:'40-60%', min:40, max:60 },
+    { label:'60-80%', min:60, max:80 },
+    { label:'80-100%', min:80, max:101 },
+  ];
+
+  function renderWeatherCorrelation(){
+    const container = $('weatherCorrCharts');
+    container.innerHTML = '';
+    let anyData = false;
+
+    WEATHER_REGIONS.forEach(region => {
+      const withWeather = rows.filter(r => r[region.key] != null);
+      if(!withWeather.length) return;
+      anyData = true;
+
+      const sums = CLOUD_BUCKETS.map(() => 0);
+      const counts = CLOUD_BUCKETS.map(() => 0);
+      withWeather.forEach(r => {
+        const idx = CLOUD_BUCKETS.findIndex(b => r[region.key] >= b.min && r[region.key] < b.max);
+        if(idx >= 0){ sums[idx] += r.priceKwh; counts[idx]++; }
+      });
+
+      const values = CLOUD_BUCKETS.map((_,i) => counts[i] > 0 ? sums[i]/counts[i] : null);
+      const validValues = values.filter(v => v != null);
+      const max = Math.max(...validValues, 0.001);
+      const min = Math.min(...validValues, 0);
+      const range = (max - min) || 0.01;
+
+      const block = document.createElement('div');
+      block.className = 'region-block';
+      const title = document.createElement('div');
+      title.className = 'region-title';
+      title.textContent = `${region.label} (${withWeather.length} registros con clima)`;
+      block.appendChild(title);
+
+      const chart = document.createElement('div'); chart.className = 'region-chart';
+      const labelsRow = document.createElement('div'); labelsRow.className = 'region-labels';
+      CLOUD_BUCKETS.forEach((b,i) => {
+        const col = document.createElement('div'); col.className = 'region-bar-col';
+        const bar = document.createElement('div'); bar.className = 'region-bar';
+        const v = values[i];
+        bar.style.height = v != null ? (8 + ((v-min)/range)*92) + '%' : '2%';
+        bar.style.opacity = v != null ? '1' : '0.15';
+        const tip = document.createElement('div'); tip.className = 'tip';
+        tip.textContent = v != null ? `${b.label} nubes · ${v.toFixed(3)} €/kWh (n=${counts[i]})` : `${b.label}: sin datos`;
+        col.appendChild(tip); col.appendChild(bar); chart.appendChild(col);
+        const lbl = document.createElement('div'); lbl.className = 'region-label'; lbl.textContent = b.label;
+        labelsRow.appendChild(lbl);
+      });
+      block.appendChild(chart);
+      block.appendChild(labelsRow);
+      container.appendChild(block);
+    });
+
+    if(!anyData){
+      $('weatherCorrStatus').textContent = 'Todavía no hay datos de clima guardados — el robot los añade desde que se activó esta función. Vuelve en unos días.';
+    }else{
+      $('weatherCorrStatus').textContent = 'Cada barra es la media de precio de todas las horas registradas con esa nubosidad, por región.';
+    }
+  }
+
   // ---- Trend with 7-day moving average ----
   function renderTrend(){
     if(!rows.length) return;
@@ -410,6 +508,7 @@
       renderHeatmap();
       renderHistogram();
       renderTrend();
+      renderWeatherCorrelation();
     })
     .catch(err => {
       console.warn('No se pudo cargar el historial:', err);
