@@ -185,6 +185,10 @@
       <div class="panel-title" style="margin-bottom:4px;">Clima y correlación con el precio</div>
       <div class="panel-desc">Precio medio agrupado por nivel de nubosidad, para cada región. Si las barras suben de izquierda a derecha, más nubes coincide con más precio — justo lo que cabría esperar si menos sol reduce la generación solar. Solo cuenta con datos desde que el robot empezó a guardar clima (columnas más recientes del CSV).</div>
       <div id="weatherCorrStatus" class="foot-note" style="margin-bottom:14px;"></div>
+
+      <div class="panel-desc" style="margin-bottom:10px;">Coeficiente de correlación (de -1 a 1): cerca de 0 = sin relación clara, cerca de 1 = a más nubes, más precio (lo esperado). Se muestra con todos los días y solo entre semana, para separar el efecto del clima del efecto de que los fines de semana ya son más baratos de por sí.</div>
+      <div id="corrStatsGrid" class="stats-grid" style="margin-bottom:20px;"></div>
+
       <div id="weatherCorrCharts"></div>
     </div>
 
@@ -410,6 +414,49 @@
     { label:'80-100%', min:80, max:101 },
   ];
 
+  function pearsonR(pairs){
+    const n = pairs.length;
+    if(n < 3) return null;
+    const meanX = pairs.reduce((s,p) => s + p[0], 0) / n;
+    const meanY = pairs.reduce((s,p) => s + p[1], 0) / n;
+    let num = 0, denX = 0, denY = 0;
+    pairs.forEach(([x,y]) => {
+      const dx = x - meanX, dy = y - meanY;
+      num += dx * dy; denX += dx * dx; denY += dy * dy;
+    });
+    if(denX === 0 || denY === 0) return null;
+    return num / Math.sqrt(denX * denY);
+  }
+
+  function renderCorrelationStats(){
+    const grid = $('corrStatsGrid');
+    grid.innerHTML = '';
+    WEATHER_REGIONS.forEach(region => {
+      const withWeather = rows.filter(r => r[region.key] != null);
+      if(!withWeather.length) return;
+
+      const allPairs = withWeather.map(r => [r[region.key], r.priceKwh]);
+      const weekdayPairs = withWeather.filter(r => r.weekday <= 4).map(r => [r[region.key], r.priceKwh]);
+
+      const rAll = pearsonR(allPairs);
+      const rWeekday = pearsonR(weekdayPairs);
+
+      const fmt = v => v == null ? 's/d' : v.toFixed(2);
+      grid.innerHTML += `
+        <div class="stat-card">
+          <div class="stat-label">${region.label} · todos los días</div>
+          <div class="stat-value">${fmt(rAll)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">${region.label} · solo entre semana</div>
+          <div class="stat-value">${fmt(rWeekday)}</div>
+        </div>`;
+    });
+    if(!grid.innerHTML){
+      grid.innerHTML = '<div class="foot-note">Sin datos de clima suficientes todavía para calcular correlación.</div>';
+    }
+  }
+
   function renderWeatherCorrelation(){
     const container = $('weatherCorrCharts');
     container.innerHTML = '';
@@ -508,6 +555,7 @@
       renderHeatmap();
       renderHistogram();
       renderTrend();
+      renderCorrelationStats();
       renderWeatherCorrelation();
     })
     .catch(err => {
