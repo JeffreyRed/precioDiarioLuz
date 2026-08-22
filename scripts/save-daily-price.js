@@ -54,9 +54,14 @@ async function fetchPVPC(dateStr){
 }
 
 // Fetches one region's hourly weather for a given date. Returns map hour -> {cloudPct, tempC}.
+// Uses the FORECAST API (not the historical/archive one) because the historical archive
+// (ERA5 reanalysis) has a 5-7 day publishing delay and would always fail for "today" or
+// "yesterday". The forecast API keeps a rolling recent-past window available immediately —
+// slightly less precise for the very latest days (it's the forecast as issued, not a
+// reanalysis correction), but that's a fine trade-off for daily price/weather tracking.
 async function fetchRegionWeather(region, dateStr){
-  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${region.lat}&longitude=${region.lon}` +
-    `&start_date=${dateStr}&end_date=${dateStr}&hourly=cloud_cover,temperature_2m&timezone=Europe%2FMadrid`;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${region.lat}&longitude=${region.lon}` +
+    `&start_date=${dateStr}&end_date=${dateStr}&hourly=cloud_cover,temperature_2m&timezone=Europe%2FMadrid&past_days=2`;
   const res = await fetch(url);
   if(!res.ok) throw new Error(`HTTP ${res.status} fetching weather (${region.key}) for ${dateStr}`);
   const json = await res.json();
