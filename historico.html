@@ -186,7 +186,7 @@
       <div class="panel-desc">Precio medio agrupado por nivel de nubosidad, para cada región. Si las barras suben de izquierda a derecha, más nubes coincide con más precio — justo lo que cabría esperar si menos sol reduce la generación solar. Solo cuenta con datos desde que el robot empezó a guardar clima (columnas más recientes del CSV).</div>
       <div id="weatherCorrStatus" class="foot-note" style="margin-bottom:14px;"></div>
 
-      <div class="panel-desc" style="margin-bottom:10px;">Coeficiente de correlación (de -1 a 1): cerca de 0 = sin relación clara, cerca de 1 = a más nubes, más precio (lo esperado). Se muestra con todos los días y solo entre semana, para separar el efecto del clima del efecto de que los fines de semana ya son más baratos de por sí.</div>
+      <div class="panel-desc" style="margin-bottom:10px;">Coeficiente de correlación (de -1 a 1): cerca de 0 = sin relación clara, cerca de 1 = a más nubes, más precio (lo esperado). Se muestra con todos los días, solo entre semana y solo fin de semana, para separar el efecto del clima del efecto de que los fines de semana ya son más baratos de por sí.</div>
       <div id="corrStatsGrid" class="stats-grid" style="margin-bottom:20px;"></div>
 
       <div id="weatherCorrCharts"></div>
@@ -437,9 +437,11 @@
 
       const allPairs = withWeather.map(r => [r[region.key], r.priceKwh]);
       const weekdayPairs = withWeather.filter(r => r.weekday <= 4).map(r => [r[region.key], r.priceKwh]);
+      const weekendPairs = withWeather.filter(r => r.weekday >= 5).map(r => [r[region.key], r.priceKwh]);
 
       const rAll = pearsonR(allPairs);
       const rWeekday = pearsonR(weekdayPairs);
+      const rWeekend = pearsonR(weekendPairs);
 
       const fmt = v => v == null ? 's/d' : v.toFixed(2);
       grid.innerHTML += `
@@ -450,6 +452,10 @@
         <div class="stat-card">
           <div class="stat-label">${region.label} · solo entre semana</div>
           <div class="stat-value">${fmt(rWeekday)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">${region.label} · solo fin de semana</div>
+          <div class="stat-value">${fmt(rWeekend)}</div>
         </div>`;
     });
     if(!grid.innerHTML){

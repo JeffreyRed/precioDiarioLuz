@@ -1,9 +1,11 @@
-// Fetches today's official PVPC prices (Madrid time) from ESIOS, plus that day's weather
+// Fetches today's official PVPC prices (Madrid time) from ESIOS, that day's weather
 // (cloud cover % and temperature, hourly) from Open-Meteo for three regions — Barcelona,
-// Madrid (centro) and Sevilla (sur) — and appends them together to data/pvpc-history.csv,
-// one row per hour. Safe to run more than once a day — it skips the write if that date is
-// already in the file. Also migrates the CSV header if it was written before the extra
-// weather columns existed, so old and new rows stay aligned.
+// Madrid (centro) and Sevilla (sur) — and that day's national electricity balance from REE
+// (% renewable, solar MWh, wind MWh, demand MWh — daily totals, REE's public balance
+// widget doesn't offer hourly granularity) — and appends them together to
+// data/pvpc-history.csv, one row per hour. Safe to run more than once a day — it skips the
+// write if that date is already in the file. Also migrates the CSV header if it was written
+// before the extra columns existed, so old and new rows stay aligned.
 const fs = require('fs');
 const path = require('path');
 
@@ -20,7 +22,8 @@ const REGIONS = [
 ];
 
 const EXPECTED_HEADER = 'date,weekday,hour,price_eur_mwh,price_eur_kwh,' +
-  REGIONS.map(r => `cloud_${r.key},temp_${r.key}`).join(',');
+  REGIONS.map(r => `cloud_${r.key},temp_${r.key}`).join(',') +
+  ',pct_renovable,solar_mwh,eolica_mwh,demanda_mwh';
 
 function madridDateString(){
   const fmt = new Intl.DateTimeFormat('en-GB', {
@@ -92,6 +95,50 @@ async function fetchAllWeather(dateStr){
   return result;
 }
 
+// Finds a named series' value for a given date inside REE's balance-electrico response.
+// groupType: the top-level "included" item type ('Renovable' | 'No-Renovable' | 'Demanda').
+// seriesTitle: the nested content item's title (e.g. 'Solar fotovoltaica').
+function findBalanceValue(json, dateStr, groupType, seriesTitle){
+  const included = (json && json.included) || [];
+  const group = included.find(g => g.type === groupType);
+  if(!group) return null;
+  const content = (group.attributes && group.attributes.content) || [];
+  const series = content.find(s => s.attributes && s.attributes.title === seriesTitle);
+  if(!series) return null;
+  const values = (series.attributes && series.attributes.values) || [];
+  const entry = values.find(v => (v.datetime || '').startsWith(dateStr));
+  return entry ? entry.value : null;
+}
+
+// Fetches that day's national electricity balance (renewable %, solar, wind, demand).
+// REE's public balance widget only offers daily granularity (not hourly), so the same
+// value is repeated across all 24 rows for that date. Returns null fields on failure —
+// this never blocks saving the price data, which is the priority.
+async function fetchNationalBalance(dateStr){
+  try{
+    const url = `https://apidatos.ree.es/es/datos/balance/balance-electrico` +
+      `?start_date=${dateStr}T00:00&end_date=${dateStr}T23:59&time_trunc=day`;
+    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    if(!res.ok) throw new Error(`HTTP ${res.status} fetching REE balance for ${dateStr}`);
+    const json = await res.json();
+
+    const renovable = findBalanceValue(json, dateStr, 'Renovable', 'Generación renovable');
+    const noRenovable = findBalanceValue(json, dateStr, 'No-Renovable', 'Generación no renovable');
+    const solar = findBalanceValue(json, dateStr, 'Renovable', 'Solar fotovoltaica');
+    const eolica = findBalanceValue(json, dateStr, 'Renovable', 'Eólica');
+    const demanda = findBalanceValue(json, dateStr, 'Demanda', 'Demanda en b.c.');
+
+    const pctRenovable = (renovable != null && noRenovable != null && (renovable + noRenovable) > 0)
+      ? (renovable / (renovable + noRenovable)) * 100
+      : null;
+
+    return { pctRenovable, solar, eolica, demanda };
+  }catch(err){
+    console.warn(`No se pudo obtener el balance eléctrico de REE para ${dateStr}, se guarda sin esas columnas:`, err.message);
+    return { pctRenovable: null, solar: null, eolica: null, demanda: null };
+  }
+}
+
 function alreadySaved(dateStr){
   if(!fs.existsSync(CSV_PATH)) return false;
   const content = fs.readFileSync(CSV_PATH, 'utf8');
@@ -99,8 +146,8 @@ function alreadySaved(dateStr){
 }
 
 // Creates the CSV with the current header if it doesn't exist yet, or migrates an older
-// header (fewer weather columns) to the current one, padding old rows with empty values
-// for whatever new columns didn't exist when they were written.
+// header (fewer columns) to the current one, padding old rows with empty values for
+// whatever new columns didn't exist when they were written.
 function ensureHeaderAndMigrate(){
   if(!fs.existsSync(CSV_PATH)){
     fs.mkdirSync(path.dirname(CSV_PATH), { recursive: true });
@@ -113,7 +160,7 @@ function ensureHeaderAndMigrate(){
   const currentHeader = lines[0];
   if(currentHeader === EXPECTED_HEADER) return; // already up to date
 
-  console.log('Migrando cabecera del CSV al nuevo formato con 3 regiones de clima...');
+  console.log('Migrando cabecera del CSV al nuevo formato...');
   const oldCols = currentHeader.split(',');
   const dataLines = lines.slice(1).filter(Boolean);
   const migrated = dataLines.map(line => {
@@ -143,8 +190,20 @@ async function main(){
   console.log(`Descargando clima de ${REGIONS.map(r => r.label).join(', ')} para ${dateStr}...`);
   const weather = await fetchAllWeather(dateStr);
 
+  console.log(`Descargando balance eléctrico nacional de REE para ${dateStr}...`);
+  const balance = await fetchNationalBalance(dateStr);
+
   ensureHeaderAndMigrate();
   const weekday = madridWeekday(dateStr); // 0=Mon..6=Sun
+
+  const fmtNum = (v, decimals) => v != null && Number.isFinite(v) ? v.toFixed(decimals) : '';
+  const balanceCols = [
+    fmtNum(balance.pctRenovable, 1),
+    fmtNum(balance.solar, 1),
+    fmtNum(balance.eolica, 1),
+    fmtNum(balance.demanda, 1),
+  ].join(',');
+
   const lines = hours.map(h => {
     const weatherCols = REGIONS.map(region => {
       const w = (weather[region.key] && weather[region.key][h.hour]) || {};
@@ -152,7 +211,7 @@ async function main(){
       const temp = Number.isFinite(w.tempC) ? w.tempC.toFixed(1) : '';
       return `${cloud},${temp}`;
     }).join(',');
-    return `${dateStr},${weekday},${h.hour},${h.priceMwh.toFixed(2)},${h.priceKwh.toFixed(5)},${weatherCols}`;
+    return `${dateStr},${weekday},${h.hour},${h.priceMwh.toFixed(2)},${h.priceKwh.toFixed(5)},${weatherCols},${balanceCols}`;
   });
   fs.appendFileSync(CSV_PATH, lines.join('\n') + '\n');
   console.log(`Guardadas ${lines.length} horas de ${dateStr} en ${CSV_PATH}`);
