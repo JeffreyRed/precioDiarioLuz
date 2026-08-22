@@ -61,7 +61,7 @@ async function fetchPVPC(dateStr){
 // reanalysis correction), but that's a fine trade-off for daily price/weather tracking.
 async function fetchRegionWeather(region, dateStr){
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${region.lat}&longitude=${region.lon}` +
-    `&start_date=${dateStr}&end_date=${dateStr}&hourly=cloud_cover,temperature_2m&timezone=Europe%2FMadrid&past_days=2`;
+    `&start_date=${dateStr}&end_date=${dateStr}&hourly=cloud_cover,temperature_2m&timezone=Europe%2FMadrid`;
   const res = await fetch(url);
   if(!res.ok) throw new Error(`HTTP ${res.status} fetching weather (${region.key}) for ${dateStr}`);
   const json = await res.json();
