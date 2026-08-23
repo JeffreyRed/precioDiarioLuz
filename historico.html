@@ -86,6 +86,7 @@
   .stat-card{ background: var(--panel-2); border:1px solid var(--border); border-radius:12px; padding:14px; text-align:center; }
   .stat-label{ font-family:'JetBrains Mono', monospace; font-size:10.5px; color: var(--text-faint); text-transform:uppercase; margin-bottom:6px; }
   .stat-value{ font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:20px; color: var(--copper); }
+  .stat-n{ font-family:'JetBrains Mono', monospace; font-size:10.5px; color: var(--text-faint); margin-top:4px; }
 
   /* Histogram */
   .hist-chart{ display:flex; align-items:flex-end; gap:4px; height:130px; }
@@ -111,6 +112,16 @@
   .region-bar-col:hover .tip{ opacity:1; }
   .region-labels{ display:flex; gap:6px; margin-top:6px; }
   .region-label{ flex:1; text-align:center; font-family:'JetBrains Mono', monospace; font-size:10px; color: var(--text-faint); }
+
+  .scatter-box{
+    position:relative; width:100%; height:160px; background: var(--panel-2);
+    border:1px solid var(--border); border-radius:10px; margin-bottom:8px; overflow:hidden;
+  }
+  .scatter-dot{
+    position:absolute; width:6px; height:6px; border-radius:50%; background: var(--copper);
+    opacity:.7; transform:translate(-50%,50%);
+  }
+  .scatter-axis-label{ font-family:'JetBrains Mono', monospace; font-size:10px; color: var(--text-faint); display:flex; justify-content:space-between; margin-bottom:16px; }
 
   @media (prefers-reduced-motion: reduce){ * { transition:none !important; } }
 </style>
@@ -168,6 +179,22 @@
     </div>
 
     <div class="panel">
+      <div class="panel-title" style="margin-bottom:4px;">Mapa de calor: hora × mes</div>
+      <div class="panel-desc">Precio medio de cada hora, mes a mes — para ver si el patrón de horas baratas se mueve con las estaciones (por ejemplo, si el hueco barato de mediodía se estrecha en invierno). Solo aparecen los meses con datos guardados.</div>
+      <div id="heatmapMonthStatus" class="foot-note" style="margin-bottom:10px;"></div>
+      <div class="heatmap"><table class="heatmap-table" id="heatmapMonthTable"></table></div>
+      <div class="heat-legend"><span>Barato</span><div class="heat-legend-bar"></div><span>Caro</span></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title" style="margin-bottom:4px;">Mapa de calor: hora × año</div>
+      <div class="panel-desc">Precio medio de cada hora, año a año — con un solo año de datos todavía no dice mucho, pero según se acumulen años se verá aquí si el patrón general de precios va cambiando de un año a otro.</div>
+      <div id="heatmapYearStatus" class="foot-note" style="margin-bottom:10px;"></div>
+      <div class="heatmap"><table class="heatmap-table" id="heatmapYearTable"></table></div>
+      <div class="heat-legend"><span>Barato</span><div class="heat-legend-bar"></div><span>Caro</span></div>
+    </div>
+
+    <div class="panel">
       <div class="panel-title" style="margin-bottom:4px;">Distribución de precios</div>
       <div class="panel-desc">Cuántas horas del histórico caen en cada rango de precio — para ver si predominan las horas baratas, las caras, o está repartido.</div>
       <div class="hist-chart" id="histChart"></div>
@@ -186,8 +213,11 @@
       <div class="panel-desc">Precio medio agrupado por nivel de nubosidad, para cada región. Si las barras suben de izquierda a derecha, más nubes coincide con más precio — justo lo que cabría esperar si menos sol reduce la generación solar. Solo cuenta con datos desde que el robot empezó a guardar clima (columnas más recientes del CSV).</div>
       <div id="weatherCorrStatus" class="foot-note" style="margin-bottom:14px;"></div>
 
-      <div class="panel-desc" style="margin-bottom:10px;">Coeficiente de correlación (de -1 a 1): cerca de 0 = sin relación clara, cerca de 1 = a más nubes, más precio (lo esperado). Se muestra con todos los días, solo entre semana y solo fin de semana, para separar el efecto del clima del efecto de que los fines de semana ya son más baratos de por sí.</div>
+      <div class="panel-desc" style="margin-bottom:10px;">Coeficiente de correlación (de -1 a 1): cerca de 0 = sin relación clara, cerca de 1 = a más nubes, más precio (lo esperado). Se muestra con todos los días, solo entre semana y solo fin de semana, para separar el efecto del clima del efecto de que los fines de semana ya son más baratos de por sí. <b>El número "n" es cuántas horas hay detrás</b> — con menos de 30, el coeficiente todavía es ruido, no te fíes (se marca en ámbar).</div>
       <div id="corrStatsGrid" class="stats-grid" style="margin-bottom:20px;"></div>
+
+      <div class="panel-desc" style="margin-bottom:10px;">Dispersión real: cada punto es una hora registrada. Con pocos puntos verás por qué el coeficiente de arriba no significa nada todavía — según se acumulen más días, debería empezar a insinuarse una diagonal si el clima de verdad influye.</div>
+      <div id="scatterCharts" style="margin-bottom:20px;"></div>
 
       <div id="weatherCorrCharts"></div>
     </div>
@@ -371,6 +401,80 @@
     $('heatmapTable').innerHTML = html;
   }
 
+  function renderHeatmapByMonth(){
+    if(!rows.length) return;
+    const sums = {}, counts = {};
+    rows.forEach(r => {
+      const ym = (r.date || '').slice(0, 7); // 'YYYY-MM'
+      if(!ym) return;
+      const key = ym + '-' + r.hour;
+      sums[key] = (sums[key] || 0) + r.priceKwh;
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    const avg = {};
+    let min = Infinity, max = -Infinity;
+    Object.keys(sums).forEach(k => { avg[k] = sums[k]/counts[k]; if(avg[k]<min) min=avg[k]; if(avg[k]>max) max=avg[k]; });
+
+    const months = [...new Set(rows.map(r => (r.date || '').slice(0, 7)))].filter(Boolean).sort();
+    $('heatmapMonthStatus').textContent = months.length < 2
+      ? 'Solo hay un mes con datos todavía — vuelve más adelante para ver la comparación entre meses.'
+      : `${months.length} meses con datos.`;
+
+    let html = '<thead><tr><th></th>' + Array.from({length:24},(_,h)=>`<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+    months.forEach(ym => {
+      html += `<tr><td>${ym}</td>`;
+      for(let h=0; h<24; h++){
+        const key = ym + '-' + h;
+        if(avg[key] != null){
+          const color = heatColor(avg[key], min, max);
+          html += `<td><div class="heat-cell" style="background:${color}" title="${ym} ${pad(h)}:00 · ${avg[key].toFixed(3)} €/kWh"></div></td>`;
+        }else{
+          html += `<td><div class="heat-cell" style="background:var(--panel-2)"></div></td>`;
+        }
+      }
+      html += '</tr>';
+    });
+    html += '</tbody>';
+    $('heatmapMonthTable').innerHTML = html;
+  }
+
+  function renderHeatmapByYear(){
+    if(!rows.length) return;
+    const sums = {}, counts = {};
+    rows.forEach(r => {
+      const y = r.y;
+      if(!y) return;
+      const key = y + '-' + r.hour;
+      sums[key] = (sums[key] || 0) + r.priceKwh;
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    const avg = {};
+    let min = Infinity, max = -Infinity;
+    Object.keys(sums).forEach(k => { avg[k] = sums[k]/counts[k]; if(avg[k]<min) min=avg[k]; if(avg[k]>max) max=avg[k]; });
+
+    const years = [...new Set(rows.map(r => r.y))].filter(Boolean).sort((a,b) => a-b);
+    $('heatmapYearStatus').textContent = years.length < 2
+      ? 'Solo hay un año con datos todavía — vuelve el año que viene para ver la comparación.'
+      : `${years.length} años con datos.`;
+
+    let html = '<thead><tr><th></th>' + Array.from({length:24},(_,h)=>`<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+    years.forEach(y => {
+      html += `<tr><td>${y}</td>`;
+      for(let h=0; h<24; h++){
+        const key = y + '-' + h;
+        if(avg[key] != null){
+          const color = heatColor(avg[key], min, max);
+          html += `<td><div class="heat-cell" style="background:${color}" title="${y} ${pad(h)}:00 · ${avg[key].toFixed(3)} €/kWh"></div></td>`;
+        }else{
+          html += `<td><div class="heat-cell" style="background:var(--panel-2)"></div></td>`;
+        }
+      }
+      html += '</tr>';
+    });
+    html += '</tbody>';
+    $('heatmapYearTable').innerHTML = html;
+  }
+
   // ---- Histogram ----
   function renderHistogram(){
     if(!rows.length) return;
@@ -428,6 +532,53 @@
     return num / Math.sqrt(denX * denY);
   }
 
+  function renderScatterCharts(){
+    const container = $('scatterCharts');
+    container.innerHTML = '';
+    let any = false;
+
+    WEATHER_REGIONS.forEach(region => {
+      const pairs = rows.filter(r => r[region.key] != null).map(r => [r[region.key], r.priceKwh]);
+      if(!pairs.length) return;
+      any = true;
+
+      const xs = pairs.map(p => p[0]), ys = pairs.map(p => p[1]);
+      const xMin = Math.min(...xs), xMax = Math.max(...xs);
+      const yMin = Math.min(...ys), yMax = Math.max(...ys);
+      const xRange = (xMax - xMin) || 1, yRange = (yMax - yMin) || 1;
+
+      const block = document.createElement('div');
+      block.className = 'region-block';
+      const title = document.createElement('div');
+      title.className = 'region-title';
+      title.textContent = `${region.label} (${pairs.length} puntos)`;
+      block.appendChild(title);
+
+      const box = document.createElement('div');
+      box.className = 'scatter-box';
+      pairs.forEach(([x,y]) => {
+        const dot = document.createElement('div');
+        dot.className = 'scatter-dot';
+        dot.style.left = (4 + ((x - xMin) / xRange) * 92) + '%';
+        dot.style.bottom = (4 + ((y - yMin) / yRange) * 92) + '%';
+        dot.title = `${x.toFixed(0)}% nubes · ${y.toFixed(3)} €/kWh`;
+        box.appendChild(dot);
+      });
+      block.appendChild(box);
+
+      const axis = document.createElement('div');
+      axis.className = 'scatter-axis-label';
+      axis.innerHTML = `<span>← nubes (${xMin.toFixed(0)}%)</span><span>nubes (${xMax.toFixed(0)}%) →</span>`;
+      block.appendChild(axis);
+
+      container.appendChild(block);
+    });
+
+    if(!any){
+      container.innerHTML = '<div class="foot-note">Sin datos de clima todavía.</div>';
+    }
+  }
+
   function renderCorrelationStats(){
     const grid = $('corrStatsGrid');
     grid.innerHTML = '';
@@ -444,18 +595,23 @@
       const rWeekend = pearsonR(weekendPairs);
 
       const fmt = v => v == null ? 's/d' : v.toFixed(2);
+      const fmtN = pairs => `n=${pairs.length}`;
+      const lowN = n => n < 30 ? ' style="color:var(--medio);"' : '';
       grid.innerHTML += `
         <div class="stat-card">
           <div class="stat-label">${region.label} · todos los días</div>
           <div class="stat-value">${fmt(rAll)}</div>
+          <div class="stat-n"${lowN(allPairs.length)}>${fmtN(allPairs)}</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">${region.label} · solo entre semana</div>
           <div class="stat-value">${fmt(rWeekday)}</div>
+          <div class="stat-n"${lowN(weekdayPairs.length)}>${fmtN(weekdayPairs)}</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">${region.label} · solo fin de semana</div>
           <div class="stat-value">${fmt(rWeekend)}</div>
+          <div class="stat-n"${lowN(weekendPairs.length)}>${fmtN(weekendPairs)}</div>
         </div>`;
     });
     if(!grid.innerHTML){
@@ -559,9 +715,12 @@
       renderNavigator();
       renderStats();
       renderHeatmap();
+      renderHeatmapByMonth();
+      renderHeatmapByYear();
       renderHistogram();
       renderTrend();
       renderCorrelationStats();
+      renderScatterCharts();
       renderWeatherCorrelation();
     })
     .catch(err => {
