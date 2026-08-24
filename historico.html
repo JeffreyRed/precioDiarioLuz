@@ -163,6 +163,28 @@
       <div class="chart" id="navChart"></div>
       <div class="hour-labels" id="navLabels"></div>
       <div id="navSummary" class="foot-note" style="margin-top:10px;"></div>
+
+      <div id="navWeatherBlock" class="hidden" style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);">
+        <div class="panel-desc" style="margin-bottom:8px;">Nubosidad de ese mismo día, hora a hora (media de las 3 regiones) — para comparar directamente con el precio de arriba.</div>
+        <div class="chart" id="navWeatherChart"></div>
+        <div class="hour-labels" id="navWeatherLabels"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Navegador semanal</div>
+      </div>
+      <div class="panel-desc" style="margin-bottom:10px;">Una semana concreta a la vez (lunes a domingo), sin mezclar con las demás — para comparar semana contra semana en vez de ver la media de todas juntas.</div>
+      <div id="weekStatusLine" class="foot-note" style="margin-bottom:12px;"></div>
+      <div class="history-nav">
+        <button class="nav-btn" id="weekPrev">←</button>
+        <div id="weekCursorLabel" class="cursor-label">--</div>
+        <button class="nav-btn" id="weekNext">→</button>
+      </div>
+      <div class="chart" id="weekChart"></div>
+      <div class="hour-labels" id="weekLabels"></div>
+      <div id="weekSummary" class="foot-note" style="margin-top:10px;"></div>
     </div>
 
     <div class="panel">
@@ -222,6 +244,23 @@
       <div id="weatherCorrCharts"></div>
     </div>
 
+    <div class="panel">
+      <div class="panel-title" style="margin-bottom:4px;">Renovables reales y precio</div>
+      <div class="panel-desc">A diferencia del clima (una aproximación), esto es generación real medida por REE — la causa directa del precio, no una pista indirecta. Como el dato es diario (no por hora), se compara el precio <b>medio de cada día</b> contra el % renovable <b>de ese mismo día</b>, en vez de mezclarlo hora a hora.</div>
+      <div id="renewablesStatus" class="foot-note" style="margin-bottom:16px;"></div>
+
+      <div class="panel-desc" style="margin-bottom:8px; color:var(--text); font-weight:600;">% renovable vs. precio medio del día</div>
+      <div id="renewablesBuckets" style="margin-bottom:8px;"></div>
+      <div id="renewablesCorr" class="foot-note" style="margin-bottom:20px;"></div>
+
+      <div class="panel-desc" style="margin-bottom:8px; color:var(--text); font-weight:600;">Evolución del % renovable</div>
+      <div class="chart" id="renovableTrendChart"></div>
+      <div class="hour-labels" id="renovableTrendLabels" style="margin-bottom:20px;"></div>
+
+      <div class="panel-desc" style="margin-bottom:8px; color:var(--text); font-weight:600;">Solar vs. eólica (MWh/día) — quién compensa a quién</div>
+      <div id="solarEolicaCharts"></div>
+    </div>
+
   </div>
 </div>
 
@@ -242,15 +281,35 @@
     lines.shift();
     return lines.filter(Boolean).map(line => {
       const cols = line.split(',');
-      const [date, weekday, hour, priceMwh, priceKwh, cloudBcn, tempBcn, cloudMad, tempMad, cloudSev, tempSev] = cols;
+      const [date, weekday, hour, priceMwh, priceKwh, cloudBcn, tempBcn, cloudMad, tempMad, cloudSev, tempSev,
+             pctRenovable, solarMwh, eolicaMwh, demandaMwh] = cols;
       const [y,m,d] = date.split('-').map(Number);
+      const num = v => v !== '' && v != null ? parseFloat(v) : null;
       return {
         date, y, m, d, weekday: parseInt(weekday,10), hour: parseInt(hour,10), priceKwh: parseFloat(priceKwh),
-        cloudBcn: cloudBcn !== '' && cloudBcn != null ? parseFloat(cloudBcn) : null,
-        cloudMad: cloudMad !== '' && cloudMad != null ? parseFloat(cloudMad) : null,
-        cloudSev: cloudSev !== '' && cloudSev != null ? parseFloat(cloudSev) : null,
+        cloudBcn: num(cloudBcn), cloudMad: num(cloudMad), cloudSev: num(cloudSev),
+        pctRenovable: num(pctRenovable), solarMwh: num(solarMwh), eolicaMwh: num(eolicaMwh), demandaMwh: num(demandaMwh),
       };
     }).filter(r => Number.isFinite(r.hour) && Number.isFinite(r.priceKwh) && r.date);
+  }
+
+  // One entry per calendar date: average price across its hours, plus the (already daily) balance fields.
+  function buildDailyData(){
+    const map = {};
+    rows.forEach(r => {
+      if(!map[r.date]) map[r.date] = { sumPrice: 0, count: 0, pctRenovable: null, solarMwh: null, eolicaMwh: null, demandaMwh: null };
+      const d = map[r.date];
+      d.sumPrice += r.priceKwh; d.count++;
+      if(d.pctRenovable == null && r.pctRenovable != null) d.pctRenovable = r.pctRenovable;
+      if(d.solarMwh == null && r.solarMwh != null) d.solarMwh = r.solarMwh;
+      if(d.eolicaMwh == null && r.eolicaMwh != null) d.eolicaMwh = r.eolicaMwh;
+      if(d.demandaMwh == null && r.demandaMwh != null) d.demandaMwh = r.demandaMwh;
+    });
+    return Object.keys(map).sort().map(date => ({
+      date, avgPrice: map[date].sumPrice / map[date].count,
+      pctRenovable: map[date].pctRenovable, solarMwh: map[date].solarMwh,
+      eolicaMwh: map[date].eolicaMwh, demandaMwh: map[date].demandaMwh,
+    }));
   }
 
   // ---- Generic bar chart (reused for the navigator and the trend chart) ----
@@ -318,13 +377,17 @@
       const dayRows = rows.filter(r=>r.date===dateStr).sort((a,b)=>a.hour-b.hour);
       labels = dayRows.map(r=>pad(r.hour)); values = dayRows.map(r=>r.priceKwh); everyLabel = 3;
       summary = dayRows.length ? 'Precio hora a hora de ese día real.' : 'No hay datos guardados para este día.';
+      renderDayWeather(dayRows);
+      $('navWeatherBlock').classList.remove('hidden');
     }else if(gran==='month'){
+      $('navWeatherBlock').classList.add('hidden');
       const map = {};
       rows.forEach(r => { if(r.y===cursor.y && r.m===cursor.m){ if(!map[r.d]) map[r.d]={sum:0,count:0}; map[r.d].sum+=r.priceKwh; map[r.d].count++; } });
       const days = Object.keys(map).map(Number).sort((a,b)=>a-b);
       labels = days.map(d=>pad(d)); values = days.map(d=>map[d].sum/map[d].count); everyLabel = 2;
       summary = days.length ? 'Media diaria de cada día del mes.' : 'No hay datos guardados en este mes.';
     }else{
+      $('navWeatherBlock').classList.add('hidden');
       const map = {};
       rows.forEach(r => { if(r.y===cursor.y){ if(!map[r.m]) map[r.m]={sum:0,count:0}; map[r.m].sum+=r.priceKwh; map[r.m].count++; } });
       const months = Object.keys(map).map(Number).sort((a,b)=>a-b);
@@ -334,6 +397,97 @@
     renderBarChart('navChart','navLabels', labels, values, {everyLabel});
     $('navSummary').textContent = summary;
   }
+
+  // Average cloud cover across the 3 regions, hour by hour, for the day currently shown above.
+  function renderDayWeather(dayRows){
+    const labels = [], values = [];
+    dayRows.forEach(r => {
+      const clouds = [r.cloudBcn, r.cloudMad, r.cloudSev].filter(v => v != null);
+      if(clouds.length){
+        labels.push(pad(r.hour));
+        values.push(clouds.reduce((a,b)=>a+b,0) / clouds.length);
+      }
+    });
+    if(!values.length){
+      $('navWeatherChart').innerHTML = '<div class="foot-note" style="padding:16px 0;">Sin datos de clima guardados para este día.</div>';
+      $('navWeatherLabels').innerHTML = '';
+      return;
+    }
+    const chart = $('navWeatherChart'), labelsEl = $('navWeatherLabels');
+    chart.innerHTML = ''; labelsEl.innerHTML = '';
+    values.forEach((v,i) => {
+      const col = document.createElement('div'); col.className = 'bar-col';
+      const bar = document.createElement('div'); bar.className = 'bar';
+      bar.style.height = (4 + (v/100)*96) + '%'; // cloud % is already 0-100, no need to rescale by min/max
+      bar.style.background = 'linear-gradient(180deg, #8AA0AD, #4C6470)';
+      const tip = document.createElement('div'); tip.className = 'tip';
+      tip.textContent = `${labels[i]}:00 · ${v.toFixed(0)}% nubes`;
+      col.appendChild(tip); col.appendChild(bar); chart.appendChild(col);
+      const lbl = document.createElement('div'); lbl.className = 'hour-label';
+      lbl.textContent = i % 3 === 0 ? labels[i] : '';
+      labelsEl.appendChild(lbl);
+    });
+  }
+
+  // ---- Weekly navigator (separate block — doesn't touch the all-weeks-merged heatmap above) ----
+  let weekCursor = null; // {y,m,d} — the Monday of the week currently shown
+
+  function mondayOf(y,m,d){
+    const dt = new Date(Date.UTC(y, m-1, d, 12));
+    const dow = (dt.getUTCDay() + 6) % 7; // 0=Mon..6=Sun
+    dt.setUTCDate(dt.getUTCDate() - dow);
+    return { y: dt.getUTCFullYear(), m: dt.getUTCMonth()+1, d: dt.getUTCDate() };
+  }
+  function addDays(y,m,d,n){
+    const dt = new Date(Date.UTC(y, m-1, d, 12));
+    dt.setUTCDate(dt.getUTCDate() + n);
+    return { y: dt.getUTCFullYear(), m: dt.getUTCMonth()+1, d: dt.getUTCDate() };
+  }
+  function dstr(p){ return `${p.y}-${pad(p.m)}-${pad(p.d)}`; }
+
+  function shiftWeek(dir){
+    const shifted = addDays(weekCursor.y, weekCursor.m, weekCursor.d, dir*7);
+    weekCursor = mondayOf(shifted.y, shifted.m, shifted.d);
+  }
+
+  function updateWeekButtons(){
+    const bounds = dataBounds();
+    if(!bounds){ $('weekPrev').disabled = true; $('weekNext').disabled = true; return; }
+    const prevWeek = addDays(weekCursor.y, weekCursor.m, weekCursor.d, -1);
+    const nextWeekStart = addDays(weekCursor.y, weekCursor.m, weekCursor.d, 7);
+    $('weekPrev').disabled = cmpDate(prevWeek, bounds.min) < 0;
+    $('weekNext').disabled = cmpDate(nextWeekStart, bounds.max) > 0;
+  }
+
+  function renderWeekNav(){
+    updateWeekButtons();
+    const weekDays = Array.from({length:7}, (_,i) => addDays(weekCursor.y, weekCursor.m, weekCursor.d, i));
+    const endLabel = weekDays[6];
+    $('weekCursorLabel').textContent = `${dstr(weekCursor)} → ${dstr(endLabel)}`;
+
+    const labels = [], values = [];
+    let daysWithData = 0;
+    weekDays.forEach((wd, i) => {
+      const dateStr = dstr(wd);
+      const dayRows = rows.filter(r => r.date === dateStr);
+      labels.push(WEEKDAY_LABELS[i]);
+      if(dayRows.length){
+        daysWithData++;
+        values.push(dayRows.reduce((s,r)=>s+r.priceKwh,0) / dayRows.length);
+      }else{
+        values.push(0);
+      }
+    });
+
+    $('weekStatusLine').textContent = `${daysWithData} de 7 días de esta semana tienen datos guardados.`;
+    renderBarChart('weekChart','weekLabels', labels, values, {});
+    $('weekSummary').textContent = daysWithData
+      ? 'Media de precio de cada día de esta semana concreta (no mezclada con otras semanas).'
+      : 'Sin datos guardados en esta semana.';
+  }
+
+  $('weekPrev').addEventListener('click', () => { shiftWeek(-1); renderWeekNav(); });
+  $('weekNext').addEventListener('click', () => { shiftWeek(1); renderWeekNav(); });
 
   // ---- Stats cards ----
   function renderStats(){
@@ -710,9 +864,11 @@
       if(!rows.length) throw new Error('CSV vacío');
       const bounds = dataBounds();
       cursor = { ...bounds.max };
+      weekCursor = mondayOf(bounds.max.y, bounds.max.m, bounds.max.d);
       $('loadingState').classList.add('hidden');
       $('app').classList.remove('hidden');
       renderNavigator();
+      renderWeekNav();
       renderStats();
       renderHeatmap();
       renderHeatmapByMonth();
@@ -722,12 +878,106 @@
       renderCorrelationStats();
       renderScatterCharts();
       renderWeatherCorrelation();
+      renderRenewables();
     })
     .catch(err => {
       console.warn('No se pudo cargar el historial:', err);
       $('loadingState').classList.add('hidden');
       $('errorState').classList.remove('hidden');
     });
+  // ---- Renewables (real REE generation data) vs price — day-level, not hourly ----
+  function renderRenewables(){
+    const daily = buildDailyData();
+    const withRenov = daily.filter(d => d.pctRenovable != null);
+
+    if(!withRenov.length){
+      $('renewablesStatus').textContent = 'Todavía no hay días guardados con datos de balance eléctrico.';
+      $('renewablesBuckets').innerHTML = '';
+      $('renewablesCorr').textContent = '';
+      $('renovableTrendChart').innerHTML = '';
+      $('solarEolicaCharts').innerHTML = '';
+      return;
+    }
+    $('renewablesStatus').textContent = `${withRenov.length} día${withRenov.length===1?'':'s'} con datos de balance eléctrico.`;
+
+    // Bucketed bar chart: avg daily price by % renewable range
+    const buckets = [
+      { label:'0-20%', min:0, max:20 }, { label:'20-40%', min:20, max:40 },
+      { label:'40-60%', min:40, max:60 }, { label:'60-80%', min:60, max:80 },
+      { label:'80-100%', min:80, max:101 },
+    ];
+    const sums = buckets.map(()=>0), counts = buckets.map(()=>0);
+    withRenov.forEach(d => {
+      const idx = buckets.findIndex(b => d.pctRenovable >= b.min && d.pctRenovable < b.max);
+      if(idx >= 0){ sums[idx] += d.avgPrice; counts[idx]++; }
+    });
+    const values = buckets.map((_,i) => counts[i] > 0 ? sums[i]/counts[i] : null);
+    const validValues = values.filter(v => v != null);
+    const bmax = Math.max(...validValues, 0.001), bmin = Math.min(...validValues, 0);
+    const brange = (bmax - bmin) || 0.01;
+
+    const block = document.createElement('div');
+    block.className = 'region-block';
+    const chart = document.createElement('div'); chart.className = 'region-chart';
+    const labelsRow = document.createElement('div'); labelsRow.className = 'region-labels';
+    buckets.forEach((b,i) => {
+      const col = document.createElement('div'); col.className = 'region-bar-col';
+      const bar = document.createElement('div'); bar.className = 'region-bar';
+      bar.style.background = 'linear-gradient(180deg, #7EE0A6, var(--barato))';
+      const v = values[i];
+      bar.style.height = v != null ? (8 + ((v-bmin)/brange)*92) + '%' : '2%';
+      bar.style.opacity = v != null ? '1' : '0.15';
+      const tip = document.createElement('div'); tip.className = 'tip';
+      tip.textContent = v != null ? `${b.label} renovable · ${v.toFixed(3)} €/kWh (n=${counts[i]} días)` : `${b.label}: sin datos`;
+      col.appendChild(tip); col.appendChild(bar); chart.appendChild(col);
+      const lbl = document.createElement('div'); lbl.className = 'region-label'; lbl.textContent = b.label;
+      labelsRow.appendChild(lbl);
+    });
+    block.appendChild(chart); block.appendChild(labelsRow);
+    $('renewablesBuckets').innerHTML = '';
+    $('renewablesBuckets').appendChild(block);
+
+    const pairs = withRenov.map(d => [d.pctRenovable, d.avgPrice]);
+    const r = pearsonR(pairs);
+    $('renewablesCorr').innerHTML = r != null
+      ? `Correlación (día a día): <b>${r.toFixed(2)}</b> (n=${pairs.length} días). Cerca de 0 = sin relación todavía visible; con pocos días esto es solo orientativo.`
+      : 'No hay suficientes días para calcular correlación todavía.';
+
+    // Trend: % renewable per day
+    renderBarChart('renovableTrendChart','renovableTrendLabels',
+      withRenov.map(d => d.date.slice(5)), withRenov.map(d => d.pctRenovable),
+      { everyLabel: Math.max(1, Math.ceil(withRenov.length/12)) });
+
+    // Solar vs eólica, side by side
+    const withSolar = daily.filter(d => d.solarMwh != null);
+    const withEolica = daily.filter(d => d.eolicaMwh != null);
+    const seContainer = $('solarEolicaCharts');
+    seContainer.innerHTML = '';
+    [
+      { label: 'Solar (MWh/día)', data: withSolar, key: 'solarMwh', color: 'linear-gradient(180deg, #FFD180, var(--medio))' },
+      { label: 'Eólica (MWh/día)', data: withEolica, key: 'eolicaMwh', color: 'linear-gradient(180deg, #8AD1E0, #4C9AAD)' },
+    ].forEach(series => {
+      if(!series.data.length) return;
+      const vals = series.data.map(d => d[series.key]);
+      const max = Math.max(...vals), min = Math.min(...vals);
+      const range = (max-min) || 1;
+      const b = document.createElement('div'); b.className = 'region-block';
+      const t = document.createElement('div'); t.className = 'region-title'; t.textContent = series.label;
+      b.appendChild(t);
+      const c = document.createElement('div'); c.className = 'region-chart';
+      series.data.forEach((d,i) => {
+        const col = document.createElement('div'); col.className = 'region-bar-col';
+        const bar = document.createElement('div'); bar.className = 'region-bar';
+        bar.style.background = series.color;
+        bar.style.height = (8 + ((vals[i]-min)/range)*92) + '%';
+        const tip = document.createElement('div'); tip.className = 'tip';
+        tip.textContent = `${d.date} · ${vals[i].toFixed(0)} MWh`;
+        col.appendChild(tip); col.appendChild(bar); c.appendChild(col);
+      });
+      b.appendChild(c);
+      seContainer.appendChild(b);
+    });
+  }
 })();
 </script>
 </body>
