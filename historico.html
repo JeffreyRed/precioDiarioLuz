@@ -188,6 +188,20 @@
     </div>
 
     <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Navegador semanal 2: mapa de calor</div>
+      </div>
+      <div class="panel-desc" style="margin-bottom:10px;">La misma semana de arriba (las flechas mueven las dos juntas), pero como mapa de calor hora × día — a diferencia del mapa de "hora × día de la semana" de más abajo, este no mezcla todas las semanas del año: es solo esta semana concreta.</div>
+      <div class="history-nav">
+        <button class="nav-btn" id="week2Prev">←</button>
+        <div id="week2CursorLabel" class="cursor-label">--</div>
+        <button class="nav-btn" id="week2Next">→</button>
+      </div>
+      <div class="heatmap"><table class="heatmap-table" id="weekHeatmapTable"></table></div>
+      <div class="heat-legend"><span>Barato</span><div class="heat-legend-bar"></div><span>Caro</span></div>
+    </div>
+
+    <div class="panel">
       <div class="panel-title" style="margin-bottom:4px;">Estadísticas generales</div>
       <div class="panel-desc">Con todo el histórico guardado hasta ahora.</div>
       <div class="stats-grid" id="statsGrid"></div>
@@ -254,6 +268,12 @@
       <div id="renewablesCorr" class="foot-note" style="margin-bottom:20px;"></div>
 
       <div class="panel-desc" style="margin-bottom:8px; color:var(--text); font-weight:600;">Evolución del % renovable</div>
+      <div class="tabs" id="renovGranTabs" style="margin-bottom:10px;">
+        <button class="tab active" data-gran="day">Día</button>
+        <button class="tab" data-gran="week">Semana</button>
+        <button class="tab" data-gran="month">Mes</button>
+        <button class="tab" data-gran="year">Año</button>
+      </div>
       <div class="chart" id="renovableTrendChart"></div>
       <div class="hour-labels" id="renovableTrendLabels" style="margin-bottom:20px;"></div>
 
@@ -484,10 +504,48 @@
     $('weekSummary').textContent = daysWithData
       ? 'Media de precio de cada día de esta semana concreta (no mezclada con otras semanas).'
       : 'Sin datos guardados en esta semana.';
+
+    renderWeekHeatmap(weekDays);
+  }
+
+  // Hour × day heatmap for one specific week only — not accumulated across all weeks
+  // like the "hora × día de la semana" map further down the page.
+  function renderWeekHeatmap(weekDays){
+    $('week2CursorLabel').textContent = `${dstr(weekCursor)} → ${dstr(weekDays[6])}`;
+
+    const grid = {}; // 'weekdayIdx-hour' -> price
+    let min = Infinity, max = -Infinity;
+    weekDays.forEach((wd, dayIdx) => {
+      const dateStr = dstr(wd);
+      rows.filter(r => r.date === dateStr).forEach(r => {
+        grid[dayIdx + '-' + r.hour] = r.priceKwh;
+        if(r.priceKwh < min) min = r.priceKwh;
+        if(r.priceKwh > max) max = r.priceKwh;
+      });
+    });
+
+    let html = '<thead><tr><th></th>' + Array.from({length:24},(_,h)=>`<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+    weekDays.forEach((wd, dayIdx) => {
+      html += `<tr><td>${WEEKDAY_LABELS[dayIdx]} ${pad(wd.d)}/${pad(wd.m)}</td>`;
+      for(let h=0; h<24; h++){
+        const key = dayIdx + '-' + h;
+        if(grid[key] != null){
+          const color = heatColor(grid[key], min, max);
+          html += `<td><div class="heat-cell" style="background:${color}" title="${WEEKDAY_LABELS[dayIdx]} ${pad(h)}:00 · ${grid[key].toFixed(3)} €/kWh"></div></td>`;
+        }else{
+          html += `<td><div class="heat-cell" style="background:var(--panel-2)"></div></td>`;
+        }
+      }
+      html += '</tr>';
+    });
+    html += '</tbody>';
+    $('weekHeatmapTable').innerHTML = html;
   }
 
   $('weekPrev').addEventListener('click', () => { shiftWeek(-1); renderWeekNav(); });
   $('weekNext').addEventListener('click', () => { shiftWeek(1); renderWeekNav(); });
+  $('week2Prev').addEventListener('click', () => { shiftWeek(-1); renderWeekNav(); });
+  $('week2Next').addEventListener('click', () => { shiftWeek(1); renderWeekNav(); });
 
   // ---- Stats cards ----
   function renderStats(){
@@ -886,6 +944,68 @@
       $('errorState').classList.remove('hidden');
     });
   // ---- Renewables (real REE generation data) vs price — day-level, not hourly ----
+  let lastRenovableDaily = [];
+  let renovGran = 'day';
+
+  function renderRenovableTrend(){
+    if(!lastRenovableDaily.length) return;
+
+    if(renovGran === 'day'){
+      renderBarChart('renovableTrendChart','renovableTrendLabels',
+        lastRenovableDaily.map(d => d.date.slice(5)), lastRenovableDaily.map(d => d.pctRenovable),
+        { everyLabel: Math.max(1, Math.ceil(lastRenovableDaily.length/12)) });
+      return;
+    }
+
+    if(renovGran === 'week'){
+      const map = {}; // 'YYYY-MM-DD' (Monday) -> {sum,count}
+      lastRenovableDaily.forEach(d => {
+        const mon = mondayOf(d.date.split('-').map(Number)[0], d.date.split('-').map(Number)[1], d.date.split('-').map(Number)[2]);
+        const key = dstr(mon);
+        if(!map[key]) map[key] = { sum:0, count:0 };
+        map[key].sum += d.pctRenovable; map[key].count++;
+      });
+      const keys = Object.keys(map).sort();
+      renderBarChart('renovableTrendChart','renovableTrendLabels',
+        keys.map(k => k.slice(5)), keys.map(k => map[k].sum/map[k].count),
+        { everyLabel: Math.max(1, Math.ceil(keys.length/12)) });
+      return;
+    }
+
+    if(renovGran === 'month'){
+      const map = {};
+      lastRenovableDaily.forEach(d => {
+        const ym = d.date.slice(0,7);
+        if(!map[ym]) map[ym] = { sum:0, count:0 };
+        map[ym].sum += d.pctRenovable; map[ym].count++;
+      });
+      const keys = Object.keys(map).sort();
+      renderBarChart('renovableTrendChart','renovableTrendLabels',
+        keys, keys.map(k => map[k].sum/map[k].count), {});
+      return;
+    }
+
+    // year
+    const map = {};
+    lastRenovableDaily.forEach(d => {
+      const y = d.date.slice(0,4);
+      if(!map[y]) map[y] = { sum:0, count:0 };
+      map[y].sum += d.pctRenovable; map[y].count++;
+    });
+    const keys = Object.keys(map).sort();
+    renderBarChart('renovableTrendChart','renovableTrendLabels',
+      keys, keys.map(k => map[k].sum/map[k].count), {});
+  }
+
+  document.querySelectorAll('#renovGranTabs .tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#renovGranTabs .tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renovGran = btn.dataset.gran;
+      renderRenovableTrend();
+    });
+  });
+
   function renderRenewables(){
     const daily = buildDailyData();
     const withRenov = daily.filter(d => d.pctRenovable != null);
@@ -943,10 +1063,8 @@
       ? `Correlación (día a día): <b>${r.toFixed(2)}</b> (n=${pairs.length} días). Cerca de 0 = sin relación todavía visible; con pocos días esto es solo orientativo.`
       : 'No hay suficientes días para calcular correlación todavía.';
 
-    // Trend: % renewable per day
-    renderBarChart('renovableTrendChart','renovableTrendLabels',
-      withRenov.map(d => d.date.slice(5)), withRenov.map(d => d.pctRenovable),
-      { everyLabel: Math.max(1, Math.ceil(withRenov.length/12)) });
+    lastRenovableDaily = withRenov; // cached for the Día/Semana/Mes/Año selector below
+    renderRenovableTrend();
 
     // Solar vs eólica, side by side
     const withSolar = daily.filter(d => d.solarMwh != null);
