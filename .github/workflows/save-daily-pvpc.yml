@@ -4,7 +4,9 @@ on:
   schedule:
     # 22:00 UTC = 23:00 o 00:00 hora de Madrid según horario de verano/invierno.
     # A esa hora el PVPC del día ya está publicado y completo, así que sirve cualquiera de las dos.
-    - cron: '0 22 * * *'
+    # - cron: '0 22 * * *'
+    # 08:00 UTC = 10:00 AM Madrid (CEST, Summer) / 09:00 AM Madrid (CET, Winter)
+    - cron: '0 8 * * *'
   workflow_dispatch: {} # permite lanzarlo a mano desde la pestaña "Actions" para probarlo
 
 permissions:
