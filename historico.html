@@ -278,6 +278,16 @@
       <div class="hour-labels" id="renovableTrendLabels" style="margin-bottom:20px;"></div>
 
       <div class="panel-desc" style="margin-bottom:8px; color:var(--text); font-weight:600;">Solar vs. eólica (MWh/día) — quién compensa a quién</div>
+      <div class="tabs" id="seGranTabs" style="margin-bottom:10px;">
+        <button class="tab active" data-gran="week">Semana</button>
+        <button class="tab" data-gran="month">Mes</button>
+        <button class="tab" data-gran="year">Año</button>
+      </div>
+      <div id="seWeekNav" class="history-nav" style="margin-bottom:10px;">
+        <button class="nav-btn" id="seWeekPrev">←</button>
+        <div id="seWeekCursorLabel" class="cursor-label">--</div>
+        <button class="nav-btn" id="seWeekNext">→</button>
+      </div>
       <div id="solarEolicaCharts"></div>
     </div>
 
@@ -1066,36 +1076,105 @@
     lastRenovableDaily = withRenov; // cached for the Día/Semana/Mes/Año selector below
     renderRenovableTrend();
 
-    // Solar vs eólica, side by side
-    const withSolar = daily.filter(d => d.solarMwh != null);
-    const withEolica = daily.filter(d => d.eolicaMwh != null);
+    // Solar vs eólica: cache the daily data, then render whichever granularity is selected.
+    lastSolarEolicaDaily = daily.filter(d => d.solarMwh != null || d.eolicaMwh != null);
+    renderSolarEolica();
+  }
+
+  let lastSolarEolicaDaily = [];
+  let seGran = 'week';
+
+  function drawSeSeries(container, label, items, key, color){
+    if(!items.length) return;
+    const vals = items.map(d => d[key]);
+    const max = Math.max(...vals), min = Math.min(...vals, 0);
+    const range = (max-min) || 1;
+    const b = document.createElement('div'); b.className = 'region-block';
+    const t = document.createElement('div'); t.className = 'region-title'; t.textContent = label;
+    b.appendChild(t);
+    const c = document.createElement('div'); c.className = 'region-chart';
+    items.forEach((d,i) => {
+      const col = document.createElement('div'); col.className = 'region-bar-col';
+      const bar = document.createElement('div'); bar.className = 'region-bar';
+      bar.style.background = color;
+      bar.style.height = vals[i] != null ? (8 + ((vals[i]-min)/range)*92) + '%' : '2%';
+      bar.style.opacity = vals[i] != null ? '1' : '0.15';
+      const tip = document.createElement('div'); tip.className = 'tip';
+      tip.textContent = vals[i] != null ? `${d.label} · ${vals[i].toFixed(0)} MWh` : `${d.label}: sin datos`;
+      col.appendChild(tip); col.appendChild(bar); c.appendChild(col);
+    });
+    b.appendChild(c);
+    const labelsRow = document.createElement('div'); labelsRow.className = 'region-labels';
+    items.forEach(d => {
+      const lbl = document.createElement('div'); lbl.className = 'region-label'; lbl.textContent = d.shortLabel;
+      labelsRow.appendChild(lbl);
+    });
+    b.appendChild(labelsRow);
+    container.appendChild(b);
+  }
+
+  function renderSolarEolica(){
     const seContainer = $('solarEolicaCharts');
     seContainer.innerHTML = '';
-    [
-      { label: 'Solar (MWh/día)', data: withSolar, key: 'solarMwh', color: 'linear-gradient(180deg, #FFD180, var(--medio))' },
-      { label: 'Eólica (MWh/día)', data: withEolica, key: 'eolicaMwh', color: 'linear-gradient(180deg, #8AD1E0, #4C9AAD)' },
-    ].forEach(series => {
-      if(!series.data.length) return;
-      const vals = series.data.map(d => d[series.key]);
-      const max = Math.max(...vals), min = Math.min(...vals);
-      const range = (max-min) || 1;
-      const b = document.createElement('div'); b.className = 'region-block';
-      const t = document.createElement('div'); t.className = 'region-title'; t.textContent = series.label;
-      b.appendChild(t);
-      const c = document.createElement('div'); c.className = 'region-chart';
-      series.data.forEach((d,i) => {
-        const col = document.createElement('div'); col.className = 'region-bar-col';
-        const bar = document.createElement('div'); bar.className = 'region-bar';
-        bar.style.background = series.color;
-        bar.style.height = (8 + ((vals[i]-min)/range)*92) + '%';
-        const tip = document.createElement('div'); tip.className = 'tip';
-        tip.textContent = `${d.date} · ${vals[i].toFixed(0)} MWh`;
-        col.appendChild(tip); col.appendChild(bar); c.appendChild(col);
+    $('seWeekNav').classList.toggle('hidden', seGran !== 'week');
+
+    let items = [];
+
+    if(seGran === 'week'){
+      $('seWeekCursorLabel').textContent = `${dstr(weekCursor)} → ${dstr(addDays(weekCursor.y,weekCursor.m,weekCursor.d,6))}`;
+      const weekDays = Array.from({length:7}, (_,i) => addDays(weekCursor.y, weekCursor.m, weekCursor.d, i));
+      items = weekDays.map((wd, i) => {
+        const dateStr = dstr(wd);
+        const found = lastSolarEolicaDaily.find(d => d.date === dateStr);
+        return { label: dateStr, shortLabel: WEEKDAY_LABELS[i], solarMwh: found ? found.solarMwh : null, eolicaMwh: found ? found.eolicaMwh : null };
       });
-      b.appendChild(c);
-      seContainer.appendChild(b);
-    });
+    }else if(seGran === 'month'){
+      const map = {};
+      lastSolarEolicaDaily.forEach(d => {
+        const ym = d.date.slice(0,7);
+        if(!map[ym]) map[ym] = { solarSum:0, solarN:0, eolicaSum:0, eolicaN:0 };
+        if(d.solarMwh != null){ map[ym].solarSum += d.solarMwh; map[ym].solarN++; }
+        if(d.eolicaMwh != null){ map[ym].eolicaSum += d.eolicaMwh; map[ym].eolicaN++; }
+      });
+      items = Object.keys(map).sort().map(ym => ({
+        label: ym, shortLabel: ym,
+        solarMwh: map[ym].solarN ? map[ym].solarSum/map[ym].solarN : null,
+        eolicaMwh: map[ym].eolicaN ? map[ym].eolicaSum/map[ym].eolicaN : null,
+      }));
+    }else{ // year
+      const map = {};
+      lastSolarEolicaDaily.forEach(d => {
+        const y = d.date.slice(0,4);
+        if(!map[y]) map[y] = { solarSum:0, solarN:0, eolicaSum:0, eolicaN:0 };
+        if(d.solarMwh != null){ map[y].solarSum += d.solarMwh; map[y].solarN++; }
+        if(d.eolicaMwh != null){ map[y].eolicaSum += d.eolicaMwh; map[y].eolicaN++; }
+      });
+      items = Object.keys(map).sort().map(y => ({
+        label: y, shortLabel: y,
+        solarMwh: map[y].solarN ? map[y].solarSum/map[y].solarN : null,
+        eolicaMwh: map[y].eolicaN ? map[y].eolicaSum/map[y].eolicaN : null,
+      }));
+    }
+
+    if(!items.length){
+      seContainer.innerHTML = '<div class="foot-note">Sin datos todavía.</div>';
+      return;
+    }
+
+    drawSeSeries(seContainer, 'Solar (MWh, media si agrupado)', items, 'solarMwh', 'linear-gradient(180deg, #FFD180, var(--medio))');
+    drawSeSeries(seContainer, 'Eólica (MWh, media si agrupado)', items, 'eolicaMwh', 'linear-gradient(180deg, #8AD1E0, #4C9AAD)');
   }
+
+  document.querySelectorAll('#seGranTabs .tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#seGranTabs .tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      seGran = btn.dataset.gran;
+      renderSolarEolica();
+    });
+  });
+  $('seWeekPrev').addEventListener('click', () => { shiftWeek(-1); renderWeekNav(); renderSolarEolica(); });
+  $('seWeekNext').addEventListener('click', () => { shiftWeek(1); renderWeekNav(); renderSolarEolica(); });
 })();
 </script>
 </body>
