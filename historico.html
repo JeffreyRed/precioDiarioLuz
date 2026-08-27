@@ -64,8 +64,8 @@
   }
   .bar-col:hover .tip{ opacity:1; }
   .bar-col:hover .bar{ filter:brightness(1.15); }
-  .hour-labels{ display:flex; gap:3px; margin-top:6px; }
-  .hour-label{ flex:1; text-align:center; font-family:'JetBrains Mono', monospace; font-size:9px; color: var(--text-faint); }
+  .hour-labels{ display:flex; gap:3px; margin-top:6px; justify-content:flex-start; }
+  .hour-label{ flex:1; text-align:center; font-family:'JetBrains Mono', monospace; font-size:9px; color: var(--text-faint); max-width:60px; }
 
   .foot-note{ font-size:11.5px; color: var(--text-faint); line-height:1.6; }
 
@@ -92,8 +92,8 @@
   .hist-chart{ display:flex; align-items:flex-end; gap:4px; height:130px; }
   .hist-bar-col{ flex:1; display:flex; flex-direction:column; align-items:center; height:100%; justify-content:flex-end; position:relative; }
   .hist-bar{ width:100%; border-radius:3px 3px 0 0; background: linear-gradient(180deg, #7EE0A6, var(--barato)); min-height:2px; }
-  .hist-labels{ display:flex; gap:4px; margin-top:6px; }
-  .hist-label{ flex:1; text-align:center; font-family:'JetBrains Mono', monospace; font-size:9px; color:var(--text-faint); }
+  .hist-labels{ display:flex; gap:4px; margin-top:6px; justify-content:flex-start; }
+  .hist-label{ flex:1; text-align:center; font-family:'JetBrains Mono', monospace; font-size:9px; color:var(--text-faint); max-width:60px; }
 
   .state{ text-align:center; padding:50px 20px; color: var(--text-dim); }
   .hidden{ display:none !important; }
@@ -110,8 +110,8 @@
     font-family:'JetBrains Mono', monospace; font-size:11px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .1s; z-index:5;
   }
   .region-bar-col:hover .tip{ opacity:1; }
-  .region-labels{ display:flex; gap:6px; margin-top:6px; }
-  .region-label{ flex:1; text-align:center; font-family:'JetBrains Mono', monospace; font-size:10px; color: var(--text-faint); }
+  .region-labels{ display:flex; gap:6px; margin-top:6px; justify-content:flex-start; }
+  .region-label{ flex:1; text-align:center; font-family:'JetBrains Mono', monospace; font-size:10px; color: var(--text-faint); max-width:60px; }
 
   .scatter-box{
     position:relative; width:100%; height:160px; background: var(--panel-2);
@@ -1084,33 +1084,75 @@
   let lastSolarEolicaDaily = [];
   let seGran = 'week';
 
-  function drawSeSeries(container, label, items, key, color){
-    if(!items.length) return;
-    const vals = items.map(d => d[key]);
-    const max = Math.max(...vals), min = Math.min(...vals, 0);
+  function drawSeCombined(container, items){
+    const solarVals = items.map(d => d.solarMwh).filter(v => v != null);
+    const eolicaVals = items.map(d => d.eolicaMwh).filter(v => v != null);
+    if(!solarVals.length && !eolicaVals.length) return;
+
+    const allVals = [...solarVals, ...eolicaVals];
+    const max = Math.max(...allVals), min = Math.min(...allVals, 0);
     const range = (max-min) || 1;
-    const b = document.createElement('div'); b.className = 'region-block';
-    const t = document.createElement('div'); t.className = 'region-title'; t.textContent = label;
-    b.appendChild(t);
-    const c = document.createElement('div'); c.className = 'region-chart';
-    items.forEach((d,i) => {
-      const col = document.createElement('div'); col.className = 'region-bar-col';
-      const bar = document.createElement('div'); bar.className = 'region-bar';
-      bar.style.background = color;
-      bar.style.height = vals[i] != null ? (8 + ((vals[i]-min)/range)*92) + '%' : '2%';
-      bar.style.opacity = vals[i] != null ? '1' : '0.15';
-      const tip = document.createElement('div'); tip.className = 'tip';
-      tip.textContent = vals[i] != null ? `${d.label} · ${vals[i].toFixed(0)} MWh` : `${d.label}: sin datos`;
-      col.appendChild(tip); col.appendChild(bar); c.appendChild(col);
-    });
-    b.appendChild(c);
-    const labelsRow = document.createElement('div'); labelsRow.className = 'region-labels';
+
+    const legend = document.createElement('div');
+    legend.className = 'heat-legend';
+    legend.style.marginTop = '0';
+    legend.style.marginBottom = '10px';
+    legend.innerHTML =
+      '<span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:3px;background:var(--medio);"></span>Solar</span>' +
+      '<span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:3px;background:#4C9AAD;"></span>Eólica</span>';
+    container.appendChild(legend);
+
+    const chart = document.createElement('div');
+    chart.className = 'chart';
+    chart.style.gap = '10px';
+
     items.forEach(d => {
-      const lbl = document.createElement('div'); lbl.className = 'region-label'; lbl.textContent = d.shortLabel;
+      const col = document.createElement('div');
+      col.className = 'bar-col';
+      col.style.flexDirection = 'row';
+      col.style.gap = '3px';
+      col.style.alignItems = 'flex-end';
+
+      const solarBar = document.createElement('div');
+      solarBar.style.flex = '1';
+      solarBar.style.borderRadius = '3px 3px 0 0';
+      solarBar.style.background = 'linear-gradient(180deg, #FFD180, var(--medio))';
+      const solarV = d.solarMwh;
+      solarBar.style.height = solarV != null ? (4 + ((solarV-min)/range)*96) + '%' : '2%';
+      solarBar.style.opacity = solarV != null ? '1' : '0.15';
+      const solarTip = document.createElement('div'); solarTip.className = 'tip';
+      solarTip.textContent = solarV != null ? `${d.label} · Solar ${solarV.toFixed(0)} MWh` : `${d.label}: sin dato solar`;
+      solarBar.appendChild(solarTip);
+      solarBar.addEventListener('mouseenter', () => solarTip.style.opacity = 1);
+      solarBar.addEventListener('mouseleave', () => solarTip.style.opacity = 0);
+      solarBar.style.position = 'relative';
+
+      const eolicaBar = document.createElement('div');
+      eolicaBar.style.flex = '1';
+      eolicaBar.style.borderRadius = '3px 3px 0 0';
+      eolicaBar.style.background = 'linear-gradient(180deg, #8AD1E0, #4C9AAD)';
+      const eolicaV = d.eolicaMwh;
+      eolicaBar.style.height = eolicaV != null ? (4 + ((eolicaV-min)/range)*96) + '%' : '2%';
+      eolicaBar.style.opacity = eolicaV != null ? '1' : '0.15';
+      eolicaBar.style.position = 'relative';
+      const eolicaTip = document.createElement('div'); eolicaTip.className = 'tip';
+      eolicaTip.textContent = eolicaV != null ? `${d.label} · Eólica ${eolicaV.toFixed(0)} MWh` : `${d.label}: sin dato eólico`;
+      eolicaBar.appendChild(eolicaTip);
+      eolicaBar.addEventListener('mouseenter', () => eolicaTip.style.opacity = 1);
+      eolicaBar.addEventListener('mouseleave', () => eolicaTip.style.opacity = 0);
+
+      col.appendChild(solarBar); col.appendChild(eolicaBar);
+      chart.appendChild(col);
+    });
+    container.appendChild(chart);
+
+    const labelsRow = document.createElement('div');
+    labelsRow.className = 'hour-labels';
+    items.forEach(d => {
+      const lbl = document.createElement('div'); lbl.className = 'hour-label'; lbl.textContent = d.shortLabel;
       labelsRow.appendChild(lbl);
     });
-    b.appendChild(labelsRow);
-    container.appendChild(b);
+    container.appendChild(labelsRow);
   }
 
   function renderSolarEolica(){
@@ -1161,8 +1203,7 @@
       return;
     }
 
-    drawSeSeries(seContainer, 'Solar (MWh, media si agrupado)', items, 'solarMwh', 'linear-gradient(180deg, #FFD180, var(--medio))');
-    drawSeSeries(seContainer, 'Eólica (MWh, media si agrupado)', items, 'eolicaMwh', 'linear-gradient(180deg, #8AD1E0, #4C9AAD)');
+    drawSeCombined(seContainer, items);
   }
 
   document.querySelectorAll('#seGranTabs .tab').forEach(btn => {
