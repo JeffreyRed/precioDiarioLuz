@@ -551,6 +551,16 @@
       <div class="panel-title" style="margin-bottom:4px;">Coste mensual real con tu rutina</div>
       <div class="foot-note" style="margin-bottom:6px;">Coge la tabla de uso de <b>"Tu uso de electrodomésticos hoy"</b> (todo lo explicado más abajo en esta página) tal y como está ahora mismo, y la aplica contra el precio PVPC <b>real</b> de cada día guardado en el histórico — no una aproximación, el precio que de verdad hubo ese día. Así ves lo que te habría costado cada mes si hubieras seguido esta rutina siempre.</div>
       <div class="foot-note" style="margin-bottom:14px; color:var(--medio);">⚠ Esa tabla no se actualiza sola día a día — es una foto fija de tu rutina tal y como la dejaste. Si cambias el consumo real (más o menos aire acondicionado, otro aparato, etc.), este cálculo puede variar respecto a lo que de verdad gastaste.</div>
+
+      <div class="foot-note" style="margin-bottom:6px; color:var(--text); font-weight:600;">Por tu ciclo de facturación (fechas de corte, no mes de calendario)</div>
+      <div class="potencia-grid" style="margin-bottom:10px;">
+        <div class="potencia-field"><label for="cycleStart">Inicio del periodo</label><input type="date" id="cycleStart" value="2026-07-24"></div>
+        <div class="potencia-field"><label for="cycleEnd">Fin del periodo</label><input type="date" id="cycleEnd" value="2026-08-26"></div>
+      </div>
+      <button class="refresh" id="cycleCalcBtn" style="margin-bottom:10px;">Calcular este periodo</button>
+      <div id="cycleResultBox" class="potencia-result" style="margin-bottom:20px;"></div>
+
+      <div class="foot-note" style="margin-bottom:6px; color:var(--text); font-weight:600;">Por mes de calendario</div>
       <div id="realMonthlyStatus" class="foot-note" style="margin-bottom:10px;"></div>
       <div class="chart" id="realMonthlyChart"></div>
       <div class="hour-labels" id="realMonthlyLabels"></div>
@@ -1462,6 +1472,7 @@
   setInterval(() => { if(!document.hidden) loadAll(true); }, 10 * 60 * 1000);
 
   // ---- Compact history summary widget: average price by hour, from data/pvpc-history.csv ----
+  let historyRowsCache = [];
   fetch('data/pvpc-history.csv')
     .then(res => { if(!res.ok) throw new Error('HTTP ' + res.status); return res.text(); })
     .then(text => {
@@ -1473,6 +1484,7 @@
       }).filter(r => Number.isFinite(r.hour) && Number.isFinite(r.priceKwh));
 
       if(!rows.length) throw new Error('CSV vacío');
+      historyRowsCache = rows; // cached so the billing-cycle date picker can recompute without refetching
 
       const sums = new Array(24).fill(0), counts = new Array(24).fill(0);
       rows.forEach(r => { sums[r.hour] += r.priceKwh; counts[r.hour]++; });
@@ -1502,6 +1514,7 @@
       });
 
       renderRealMonthlyCost(rows);
+      renderCycleCost();
     })
     .catch(err => {
       console.warn('No se pudo cargar el resumen del histórico:', err);
@@ -1510,6 +1523,49 @@
     });
 
   // ---- Real monthly cost: today's usage matrix × the real recorded price of each historic day ----
+  // ---- Billing-cycle calculator: pick your own start/end cut-off dates instead of a calendar month ----
+  function renderCycleCost(){
+    const start = $('cycleStart').value, end = $('cycleEnd').value;
+    if(!start || !end){
+      $('cycleResultBox').innerHTML = '<div class="foot-note">Elige fecha de inicio y de fin.</div>';
+      return;
+    }
+    if(start > end){
+      $('cycleResultBox').innerHTML = '<div class="foot-note" style="color:var(--caro);">La fecha de inicio es posterior a la de fin.</div>';
+      return;
+    }
+    const model = buildUsageModel();
+    const pricesByDate = {};
+    historyRowsCache.forEach(r => {
+      if(r.date < start || r.date > end) return;
+      if(!pricesByDate[r.date]) pricesByDate[r.date] = {};
+      pricesByDate[r.date][r.hour] = r.priceKwh;
+    });
+    const datesWithData = Object.keys(pricesByDate).sort();
+    if(!datesWithData.length){
+      $('cycleResultBox').innerHTML = '<div class="foot-note">No hay días guardados dentro de ese rango todavía.</div>';
+      return;
+    }
+    let total = 0;
+    datesWithData.forEach(date => {
+      let dayCost = 0;
+      for(let h = 0; h < 24; h++) dayCost += model.hourly[h] * (pricesByDate[date][h] != null ? pricesByDate[date][h] : 0);
+      total += dayCost;
+    });
+    const avgPerDay = total / datesWithData.length;
+
+    // Days in the requested range vs days we actually have data for — flags gaps honestly.
+    const rangeDays = Math.round((new Date(end) - new Date(start)) / 86400000) + 1;
+    const projected = avgPerDay * rangeDays;
+
+    $('cycleResultBox').innerHTML = `
+      <div><span class="pr-label">Coste real (${datesWithData.length} de ${rangeDays} días con dato)</span><span class="pr-value">${total.toFixed(2)} €</span></div>
+      <div><span class="pr-label">Media por día</span><span class="pr-value">${avgPerDay.toFixed(3)} €</span></div>
+      <div><span class="pr-label">Proyectado a los ${rangeDays} días del periodo</span><span class="pr-value">${projected.toFixed(2)} €</span></div>
+    `;
+  }
+  $('cycleCalcBtn').addEventListener('click', renderCycleCost);
+
   function renderRealMonthlyCost(rows){
     const model = buildUsageModel();
     const pricesByDate = {};
