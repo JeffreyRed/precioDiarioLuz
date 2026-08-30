@@ -1558,10 +1558,20 @@
     const rangeDays = Math.round((new Date(end) - new Date(start)) / 86400000) + 1;
     const projected = avgPerDay * rangeDays;
 
+    // Full estimated bill: energía (proyectada al ciclo completo) + potencia + gestión + bono social +
+    // alquiler + impuesto eléctrico + IVA — mismos campos que usa el comparador mensual de abajo.
+    const kwP = num('mKwPunta'), kwV = num('mKwValle');
+    const potencia = (kwP * num('mFlexiPotP') + kwV * num('mFlexiPotV')) * rangeDays;
+    const gestion = num('mFlexiGestion') * rangeDays;
+    const bonoSocialTotal = num('mBonoSocial') * rangeDays;
+    const alquilerTotal = num('mAlquiler') * rangeDays;
+    const fullBill = billTotal(potencia, projected, bonoSocialTotal, alquilerTotal, gestion);
+
     $('cycleResultBox').innerHTML = `
       <div><span class="pr-label">Coste real (${datesWithData.length} de ${rangeDays} días con dato)</span><span class="pr-value">${total.toFixed(2)} €</span></div>
       <div><span class="pr-label">Media por día</span><span class="pr-value">${avgPerDay.toFixed(3)} €</span></div>
       <div><span class="pr-label">Proyectado a los ${rangeDays} días del periodo</span><span class="pr-value">${projected.toFixed(2)} €</span></div>
+      <div><span class="pr-label">Factura completa estimada (potencia + impuestos)</span><span class="pr-value" style="color:var(--barato);">${fullBill.toFixed(2)} €</span></div>
     `;
   }
   $('cycleCalcBtn').addEventListener('click', renderCycleCost);
@@ -1618,12 +1628,20 @@
       const t = monthTotals[m];
       const avgPerDay = t.sum / t.days;
       const avgFullMonth = avgPerDay * 30;
-      return `<tr><td>${m}</td><td>${t.days}</td><td>${t.sum.toFixed(2)} €</td><td>${avgPerDay.toFixed(3)} €</td><td>${avgFullMonth.toFixed(2)} €</td></tr>`;
+
+      const kwP = num('mKwPunta'), kwV = num('mKwValle');
+      const potencia = (kwP * num('mFlexiPotP') + kwV * num('mFlexiPotV')) * t.days;
+      const gestion = num('mFlexiGestion') * t.days;
+      const bonoSocialTotal = num('mBonoSocial') * t.days;
+      const alquilerTotal = num('mAlquiler') * t.days;
+      const fullBill = billTotal(potencia, t.sum, bonoSocialTotal, alquilerTotal, gestion);
+
+      return `<tr><td>${m}</td><td>${t.days}</td><td>${t.sum.toFixed(2)} €</td><td>${avgPerDay.toFixed(3)} €</td><td>${avgFullMonth.toFixed(2)} €</td><td style="color:var(--barato);">${fullBill.toFixed(2)} €</td></tr>`;
     }).join('');
 
     $('realMonthlyTable').innerHTML = `
       <table class="real-monthly-table">
-        <thead><tr><th>Mes</th><th>Días guardados</th><th>Coste real acumulado</th><th>Media/día</th><th>Proyección ×30 días</th></tr></thead>
+        <thead><tr><th>Mes</th><th>Días guardados</th><th>Coste real acumulado</th><th>Media/día</th><th>Proyección ×30 días</th><th>Factura completa (con potencia+imp.)</th></tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>`;
   }
