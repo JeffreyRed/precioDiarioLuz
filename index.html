@@ -628,10 +628,10 @@
 
       <div class="foot-note" style="margin-bottom:6px; color:var(--text);">Consumo del mes (kWh por periodo) — auto-calculado desde tu tabla de uso × días facturados. Puedes escribir encima para meter tu factura real y comparar.</div>
       <div class="kwh-rows" style="margin-bottom:10px;">
-        <div class="kwh-row"><label for="mKwhPunta">Punta</label><input type="number" id="mKwhPunta" value="93" step="0.1" min="0"><span class="kwh-unit">kWh/mes</span></div>
-        <div class="kwh-row"><label for="mKwhLlano">Llano</label><input type="number" id="mKwhLlano" value="89" step="0.1" min="0"><span class="kwh-unit">kWh/mes</span></div>
-        <div class="kwh-row"><label for="mKwhValle">Valle</label><input type="number" id="mKwhValle" value="120" step="0.1" min="0"><span class="kwh-unit">kWh/mes</span></div>
-        <div class="kwh-row"><label for="mDias">Días facturados</label><input type="number" id="mDias" value="30" step="1" min="1"><span class="kwh-unit">días</span></div>
+        <div class="kwh-row"><label for="mKwhPunta">Punta</label><input type="number" id="mKwhPunta" value="182.99" step="0.1" min="0"><span class="kwh-unit">kWh/mes</span></div>
+        <div class="kwh-row"><label for="mKwhLlano">Llano</label><input type="number" id="mKwhLlano" value="136.10" step="0.1" min="0"><span class="kwh-unit">kWh/mes</span></div>
+        <div class="kwh-row"><label for="mKwhValle">Valle</label><input type="number" id="mKwhValle" value="251.70" step="0.1" min="0"><span class="kwh-unit">kWh/mes</span></div>
+        <div class="kwh-row"><label for="mDias">Días facturados</label><input type="number" id="mDias" value="33" step="1" min="1"><span class="kwh-unit">días</span></div>
       </div>
       <button class="refresh" id="mSyncBtn" style="margin-bottom:14px;">↻ Recalcular kWh desde la tabla de uso</button>
 
@@ -661,7 +661,7 @@
 
       <div class="foot-note" style="margin-bottom:6px; color:var(--text); font-weight:600;">Cargos regulados comunes (iguales para cualquier tarifa)</div>
       <div class="potencia-grid" style="margin-bottom:14px;">
-        <div class="potencia-field"><label for="mBonoSocial">Bono social (€/día)</label><input type="number" id="mBonoSocial" value="0.024" step="0.001" min="0"></div>
+        <div class="potencia-field"><label for="mBonoSocial">Bono social (€/día)</label><input type="number" id="mBonoSocial" value="0.025" step="0.001" min="0"></div>
         <div class="potencia-field"><label for="mAlquiler">Alquiler equipos (€/día)</label><input type="number" id="mAlquiler" value="0.027" step="0.001" min="0"></div>
       </div>
 
@@ -1171,12 +1171,12 @@
 
   // ---- Monthly full-bill comparator ----
   const MONTHLY_DEFAULTS = {
-    mKwhPunta:'93', mKwhLlano:'89', mKwhValle:'120', mDias:'30',
+    mKwhPunta:'182.99', mKwhLlano:'136.10', mKwhValle:'251.70', mDias:'33',
     mKwPunta:'4.5', mKwValle:'4.5',
     mFlexiGestion:'0.123', mFlexiPotP:'0.076', mFlexiPotV:'0.002',
     mRelaxEnergy:'0.124', mRelaxPot:'0.093',
     mO3Punta:'0.143', mO3Llano:'0.124', mO3Valle:'0.114', mO3Pot:'0.093',
-    mBonoSocial:'0.024', mAlquiler:'0.027'
+    mBonoSocial:'0.025', mAlquiler:'0.027'
   };
 
   function num(id){ return parseFloat($(id).value) || 0; }
@@ -1249,10 +1249,11 @@
     renderMonthly();
   });
 
-  function billTotal(potencia, energia, bonoSocialTotal, alquilerTotal){
+  function billTotal(potencia, energia, bonoSocialTotal, alquilerTotal, otrosExtra){
+    otrosExtra = otrosExtra || 0;
     const subtotal = potencia + energia;
     const impuestoElectrico = subtotal * 0.0511;
-    const subtotal2 = subtotal + impuestoElectrico + bonoSocialTotal + alquilerTotal;
+    const subtotal2 = subtotal + impuestoElectrico + bonoSocialTotal + alquilerTotal + otrosExtra;
     const iva = subtotal2 * 0.21;
     return subtotal2 + iva;
   }
@@ -1276,8 +1277,11 @@
       for(let h = 0; h < 24; h++) flexiEnergiaDia += model.hourly[h] * (priceByHour[h] || 0);
     }
     const flexiPotencia = (kwP * num('mFlexiPotP') + kwV * num('mFlexiPotV')) * dias;
-    const flexiEnergia = flexiEnergiaDia * dias + num('mFlexiGestion') * dias;
-    const flexiTotal = billTotal(flexiPotencia, flexiEnergia, bonoSocialTotal, alquilerTotal);
+    const flexiEnergia = flexiEnergiaDia * dias;
+    const flexiGestionTotal = num('mFlexiGestion') * dias;
+    // Costes de gestión sits under "Otros conceptos" on the real bill — it's taxed by IVA
+    // but NOT by the 5,11% impuesto eléctrico (that only applies to potencia + energía).
+    const flexiTotal = billTotal(flexiPotencia, flexiEnergia, bonoSocialTotal, alquilerTotal, flexiGestionTotal);
 
     const relaxPotencia = (kwP + kwV) * num('mRelaxPot') * dias;
     const relaxEnergia = (kwhP + kwhL + kwhV) * num('mRelaxEnergy');
