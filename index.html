@@ -535,28 +535,32 @@
       </div>
     </div>
 
-    <div class="now-card" id="o3NowCard">
-      <div class="now-left">
-        <div class="now-eyebrow">Tu tarifa: Octopus 3, esta hora</div>
-        <div class="now-price"><span id="o3NowPrice">--</span><span class="unit">€/kWh</span></div>
-        <div class="foot-note" style="margin-top:8px;">Precio fijo por franja horaria — siempre el mismo a esta hora, no cambia día a día.</div>
+    <div class="top-grid">
+      <div class="now-card" id="o3NowCard">
+        <div class="now-left">
+          <div class="now-eyebrow">Tu tarifa: Octopus 3, esta hora</div>
+          <div class="now-price"><span id="o3NowPrice">--</span><span class="unit">€/kWh</span></div>
+          <div class="foot-note" style="margin-top:8px;">Precio fijo por franja horaria — siempre el mismo a esta hora, no cambia día a día.</div>
+        </div>
+        <div id="o3NowBand" class="now-band band-medio"><span class="dot"></span><span id="o3NowBandText">Cargando…</span></div>
       </div>
-      <div id="o3NowBand" class="now-band band-medio"><span class="dot"></span><span id="o3NowBandText">Cargando…</span></div>
+
+      <div class="panel chart-panel" id="o3SchedulePanel">
+        <div class="panel-title" style="margin-bottom:4px;">Franjas de Octopus 3</div>
+        <div class="foot-note" style="margin-bottom:14px;">Precio fijo según la hora del reloj — a diferencia del mercado libre de arriba.</div>
+
+        <div class="chart" id="o3Chart"></div>
+        <div class="hour-labels" id="o3ChartLabels"></div>
+        <div class="legend">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--barato)"></span>Valle</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--medio)"></span>Llano</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--caro)"></span>Punta</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--copper); box-shadow:0 0 0 2px var(--copper)"></span>Ahora</div>
+        </div>
+      </div>
     </div>
 
-    <div class="panel" id="o3SchedulePanel">
-      <div class="panel-title" style="margin-bottom:4px;">Franjas de Octopus 3</div>
-      <div class="foot-note" style="margin-bottom:14px;">Precio fijo según la hora del reloj (no cambia día a día, a diferencia del mercado libre de arriba). Así sabes cuándo encender algo.</div>
-
-      <div class="chart" id="o3Chart"></div>
-      <div class="hour-labels" id="o3ChartLabels"></div>
-      <div class="legend" style="margin-bottom:16px;">
-        <div class="legend-item"><span class="legend-swatch" style="background:var(--barato)"></span>Valle</div>
-        <div class="legend-item"><span class="legend-swatch" style="background:var(--medio)"></span>Llano</div>
-        <div class="legend-item"><span class="legend-swatch" style="background:var(--caro)"></span>Punta</div>
-        <div class="legend-item"><span class="legend-swatch" style="background:var(--copper); box-shadow:0 0 0 2px var(--copper)"></span>Ahora</div>
-      </div>
-
+    <div class="panel" id="o3CardsPanel">
       <div class="o3-cards">
         <div class="o3-card o3-punta">
           <div class="o3-card-name">🔴 Punta</div>
@@ -1304,8 +1308,8 @@
       labelsEl.appendChild(lbl);
     }
 
-    document.querySelectorAll('#o3SchedulePanel .o3-card').forEach(c => c.classList.remove('active'));
-    const activeCard = document.querySelector('#o3SchedulePanel .o3-' + nowPeriod);
+    document.querySelectorAll('#o3CardsPanel .o3-card').forEach(c => c.classList.remove('active'));
+    const activeCard = document.querySelector('#o3CardsPanel .o3-' + nowPeriod);
     if(activeCard) activeCard.classList.add('active');
 
     $('o3PriceP').textContent = num('mO3Punta').toFixed(3) + ' €/kWh';
