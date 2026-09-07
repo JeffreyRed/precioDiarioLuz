@@ -136,6 +136,30 @@
   }
   @media (max-width:560px){ .weather-right{ border-left:none; padding-left:0; border-top:1px solid var(--border); padding-top:14px; } }
   .weather-right b{ color: var(--text); }
+
+  .o3-schedule-bar{
+    display:flex; height:28px; border-radius:8px; overflow:hidden; position:relative;
+  }
+  .o3-schedule-bar .seg{ height:100%; position:relative; }
+  .o3-schedule-bar .seg.punta{ background: rgba(224,104,79,0.55); }
+  .o3-schedule-bar .seg.llano{ background: rgba(232,176,83,0.55); }
+  .o3-schedule-bar .seg.valle{ background: rgba(111,207,151,0.55); }
+  .o3-schedule-bar .now-marker{
+    position:absolute; top:-4px; bottom:-4px; width:2px; background: var(--copper);
+    box-shadow: 0 0 6px var(--copper);
+  }
+  .o3-schedule-labels{
+    display:flex; justify-content:space-between; margin-top:6px;
+    font-family:'JetBrains Mono', monospace; font-size:10px; color: var(--text-faint);
+  }
+  .o3-cards{ display:grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap:10px; }
+  .o3-card{
+    background: var(--panel-2); border:1px solid var(--border); border-radius:12px; padding:14px; text-align:center;
+  }
+  .o3-card.active{ border-color: var(--copper); box-shadow: 0 0 0 1px var(--copper); }
+  .o3-card-name{ font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:14px; margin-bottom:6px; }
+  .o3-card-price{ font-family:'JetBrains Mono', monospace; font-size:16px; color: var(--copper); margin-bottom:4px; }
+  .o3-card-hours{ font-family:'JetBrains Mono', monospace; font-size:10.5px; color: var(--text-faint); }
   .tariff-compare{ margin-top: 14px; display:flex; flex-direction:column; gap:6px; }
   .tariff-row{
     display:flex; align-items:center; gap:8px; font-family:'JetBrains Mono', monospace; font-size:12.5px;
@@ -518,6 +542,35 @@
         <div class="weather-sublabel">Media 3 regiones</div>
       </div>
       <div class="weather-right" id="weatherText">Consultando el tiempo…</div>
+    </div>
+
+    <div class="panel" id="o3SchedulePanel">
+      <div class="panel-title" style="margin-bottom:4px;">Franjas de Octopus 3</div>
+      <div class="foot-note" style="margin-bottom:14px;">Precio fijo según la hora del reloj (no cambia día a día, a diferencia de Flexi). Útil para saber cuándo encender algo si te pasas a esta tarifa.</div>
+
+      <div class="o3-schedule-bar" id="o3ScheduleBar"></div>
+      <div class="o3-schedule-labels">
+        <span>00h</span><span>06h</span><span>12h</span><span>18h</span><span>24h</span>
+      </div>
+
+      <div class="o3-cards" style="margin-top:16px;">
+        <div class="o3-card o3-punta">
+          <div class="o3-card-name">🔴 Punta</div>
+          <div class="o3-card-price" id="o3PriceP">0,143 €/kWh</div>
+          <div class="o3-card-hours">L-V 10-14h y 18-22h</div>
+        </div>
+        <div class="o3-card o3-llano">
+          <div class="o3-card-name">🟡 Llano</div>
+          <div class="o3-card-price" id="o3PriceL">0,124 €/kWh</div>
+          <div class="o3-card-hours">L-V 8-10h, 14-18h y 22-24h</div>
+        </div>
+        <div class="o3-card o3-valle">
+          <div class="o3-card-name">🟢 Valle</div>
+          <div class="o3-card-price" id="o3PriceV">0,114 €/kWh</div>
+          <div class="o3-card-hours">L-V 0-8h · Todo el finde y festivos</div>
+        </div>
+      </div>
+      <div id="o3NowNote" class="foot-note" style="margin-top:12px; color:var(--text);"></div>
     </div>
 
     <div class="briefing">
@@ -1197,6 +1250,49 @@
     if((hour >= 10 && hour < 14) || (hour >= 18 && hour < 22)) return 'punta';
     return 'llano';
   }
+
+  // ---- Octopus 3 fixed-schedule block ----
+  function renderO3Schedule(){
+    const bar = $('o3ScheduleBar');
+    bar.innerHTML = '';
+    // Weekday schedule only (weekend = all valle, shown separately in the card text).
+    for(let h = 0; h < 24; h++){
+      const period = periodForHour(h, false); // false = weekday schedule
+      const seg = document.createElement('div');
+      seg.className = 'seg ' + period;
+      seg.style.width = (100/24) + '%';
+      seg.title = `${pad(h)}:00-${pad((h+1)%24)}:00 · ${period}`;
+      bar.appendChild(seg);
+    }
+
+    const p = madridParts(0);
+    const weekend = new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay() % 6 === 0;
+    const nowHour = p.hour;
+    const nowPeriod = periodForHour(nowHour, weekend);
+
+    const marker = document.createElement('div');
+    marker.className = 'now-marker';
+    marker.style.left = ((nowHour + (p.minute/60)) / 24 * 100) + '%';
+    bar.appendChild(marker);
+
+    document.querySelectorAll('#o3SchedulePanel .o3-card').forEach(c => c.classList.remove('active'));
+    const activeCard = document.querySelector('#o3SchedulePanel .o3-' + nowPeriod);
+    if(activeCard) activeCard.classList.add('active');
+
+    $('o3PriceP').textContent = num('mO3Punta').toFixed(3) + ' €/kWh';
+    $('o3PriceL').textContent = num('mO3Llano').toFixed(3) + ' €/kWh';
+    $('o3PriceV').textContent = num('mO3Valle').toFixed(3) + ' €/kWh';
+
+    const periodLabel = { punta:'PUNTA (la más cara)', llano:'LLANO (media)', valle:'VALLE (la más barata)' };
+    $('o3NowNote').innerHTML = weekend
+      ? `Ahora mismo es fin de semana → todo el día cuenta como <b>VALLE</b> en Octopus 3 (${num('mO3Valle').toFixed(3)} €/kWh).`
+      : `Ahora mismo (${pad(nowHour)}:00) estás en <b>${periodLabel[nowPeriod]}</b>.`;
+  }
+  renderO3Schedule();
+  setInterval(renderO3Schedule, 5 * 60 * 1000);
+  ['mO3Punta','mO3Llano','mO3Valle'].forEach(id => {
+    $(id).addEventListener('input', renderO3Schedule);
+  });
 
   let lastNowEntry = null, lastNowHour = null;
 
